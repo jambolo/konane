@@ -62,7 +62,7 @@ impl SetupView {
     pub fn view(&self) -> Element<'_, SetupMessage> {
         let title = text("Kōnane").size(48);
 
-        let subtitle = text("Hawaiian Checkers").size(24);
+        let subtitle = text("Traditional Hawaiian Board Game").size(24);
 
         // Board size selector
         let board_sizes: Vec<usize> = (4..=16).step_by(2).collect();

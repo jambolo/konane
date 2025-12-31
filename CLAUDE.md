@@ -45,6 +45,15 @@ cargo clippy                   # Lint
 cargo fmt                      # Format code
 ```
 
+## Version Bumping
+
+1. Read version from `Cargo.toml`, compute next minor version.
+2. Create release branch: `git checkout -b release/<new_version>`.
+3. Update version in `Cargo.toml` and commit.
+4. Verify build: `cargo build --release`.
+5. Merge to master: `git checkout master && git merge release/<new_version>`. Tag: `git tag v<new_version>`. Push: `git push origin master --tags`.
+6. Merge to develop: `git checkout develop && git merge master`. Push: `git push origin develop`.
+
 ## Kōnane Design
 
 ### Architecture

@@ -1,6 +1,17 @@
 [package]
-name = "kohane"
+name = "konane"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+audio = ["kira"]
+
 [dependencies]
+iced = { version = "0.14", features = ["image", "canvas", "tokio"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.9"
+ndarray = "0.17"
+kira = { version = "0.11", optional = true }

@@ -1,13 +1,14 @@
 use std::time::Duration;
 
-use iced::widget::{column, container, row, text};
+use iced::widget::{button, column, container, row, stack, text};
 use iced::{Alignment, Element, Length, Subscription, Task};
+use konane::import;
 
 use crate::audio::GameAudio;
 use crate::game::rules::Jump;
 use crate::game::{GamePhase, GameState, PieceColor, Position, Rules};
 use crate::ui::board_view::{BoardMessage, BoardView};
-use crate::ui::game_over_view::{GameOverMessage, GameOverView};
+use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{SetupMessage, SetupView};
 
 #[derive(Debug, Clone)]
@@ -32,6 +33,8 @@ pub struct KonaneApp {
     game_over_view: Option<GameOverView>,
     status_message: String,
     audio: GameAudio,
+    undo_stack: Vec<GameState>,
+    redo_stack: Vec<GameState>,
 }
 
 impl Default for KonaneApp {
@@ -44,6 +47,8 @@ impl Default for KonaneApp {
             game_over_view: None,
             status_message: String::new(),
             audio: GameAudio::new(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 }
@@ -90,8 +95,44 @@ impl KonaneApp {
                 let first_player = self.setup.color_option.to_piece_color();
                 self.game_state = Some(GameState::new(self.setup.board_size, first_player));
                 self.board_view = BoardView::default();
+                self.undo_stack.clear();
+                self.redo_stack.clear();
                 self.view = AppView::Playing;
                 self.update_status();
+            }
+            SetupMessage::ShowImportModal => {
+                self.setup.show_import_modal = true;
+                self.setup.import_path.clear();
+                self.setup.import_error = None;
+            }
+            SetupMessage::ImportPathChanged(path) => {
+                self.setup.import_path = path;
+                self.setup.import_error = None;
+            }
+            SetupMessage::CancelImport => {
+                self.setup.show_import_modal = false;
+                self.setup.import_path.clear();
+                self.setup.import_error = None;
+            }
+            SetupMessage::ImportGame => {
+                let path = self.setup.import_path.clone();
+                match import::import_game_from_path(&path) {
+                    Ok((state, history)) => {
+                        self.game_state = Some(state);
+                        self.board_view = BoardView::default();
+                        self.undo_stack = history;
+                        self.redo_stack.clear();
+                        self.view = AppView::Playing;
+                        self.update_status();
+                        self.setup.show_import_modal = false;
+                        self.setup.import_path.clear();
+                        self.setup.import_error = None;
+                    }
+                    Err(error) => {
+                        self.setup.show_import_modal = true;
+                        self.setup.import_error = Some(error);
+                    }
+                }
             }
         }
         Task::none()
@@ -109,13 +150,23 @@ impl KonaneApp {
             BoardMessage::JumpSelected(jump) => {
                 self.handle_jump_selected(jump);
             }
+            BoardMessage::Undo => {
+                self.handle_undo();
+            }
+            BoardMessage::Redo => {
+                self.handle_redo();
+            }
         }
 
         // Check for game over
         if let Some(ref state) = self.game_state
             && let GamePhase::GameOver { winner } = state.phase
         {
-            self.game_over_view = Some(GameOverView::new(winner, state.move_history.clone()));
+            self.game_over_view = Some(GameOverView::new(
+                winner,
+                state.move_history.clone(),
+                state.board.size(),
+            ));
             self.view = AppView::GameOver;
         }
 
@@ -131,7 +182,8 @@ impl KonaneApp {
             GamePhase::OpeningBlackRemoval => {
                 let valid = Rules::valid_black_opening_removals(state);
                 if valid.contains(&pos) {
-                    // Get the piece color before removal for animation
+                    self.save_state_for_undo();
+                    let state = self.game_state.as_mut().unwrap();
                     let color = state
                         .board
                         .get_piece_color(pos)
@@ -146,6 +198,8 @@ impl KonaneApp {
             GamePhase::OpeningWhiteRemoval => {
                 let valid = Rules::valid_white_opening_removals(state);
                 if valid.contains(&pos) {
+                    self.save_state_for_undo();
+                    let state = self.game_state.as_mut().unwrap();
                     let color = state
                         .board
                         .get_piece_color(pos)
@@ -158,14 +212,12 @@ impl KonaneApp {
                 }
             }
             GamePhase::Play => {
-                // Check if clicking on a piece with valid moves
                 let jumps = Rules::valid_jumps_from(state, pos);
                 if !jumps.is_empty() {
                     self.board_view.select_piece(pos, jumps);
                     self.status_message =
                         format!("{}'s turn - Select destination", state.current_player);
                 } else {
-                    // Clicking elsewhere clears selection
                     self.board_view.clear_selection();
                     self.update_status();
                 }
@@ -175,7 +227,7 @@ impl KonaneApp {
     }
 
     fn handle_jump_selected(&mut self, jump: Jump) {
-        let Some(ref mut state) = self.game_state else {
+        let Some(ref state) = self.game_state else {
             return;
         };
 
@@ -185,6 +237,9 @@ impl KonaneApp {
             .iter()
             .filter_map(|&pos| state.board.get_piece_color(pos).map(|color| (pos, color)))
             .collect();
+
+        self.save_state_for_undo();
+        let state = self.game_state.as_mut().unwrap();
 
         // Apply the jump
         Rules::apply_jump(state, &jump);
@@ -212,29 +267,78 @@ impl KonaneApp {
                 self.game_over_view = None;
                 self.board_view = BoardView::default();
             }
-            GameOverMessage::DownloadText => {
-                if let Some(ref view) = self.game_over_view {
-                    let log = view.generate_text_log();
-                    self.save_log(&log, "konane_game.txt");
+            GameOverMessage::ShowExportModal(format) => {
+                if let Some(ref mut view) = self.game_over_view {
+                    view.show_export_modal = true;
+                    view.export_format = Some(format);
+                    view.export_path.clear();
                 }
             }
-            GameOverMessage::DownloadJson => {
-                if let Some(ref view) = self.game_over_view {
-                    let log = view.generate_json_log();
-                    self.save_log(&log, "konane_game.json");
+            GameOverMessage::ExportPathChanged(path) => {
+                if let Some(ref mut view) = self.game_over_view {
+                    view.export_path = path;
+                }
+            }
+            GameOverMessage::CancelExport => {
+                if let Some(ref mut view) = self.game_over_view {
+                    view.show_export_modal = false;
+                    view.export_path.clear();
+                    view.export_format = None;
+                }
+            }
+            GameOverMessage::ConfirmExport => {
+                if let Some(ref mut view) = self.game_over_view {
+                    let path = view.export_path.clone();
+                    let content = match view.export_format {
+                        Some(ExportFormat::Text) => view.generate_text_log(),
+                        Some(ExportFormat::Json) => view.generate_json_log(),
+                        None => return Task::none(),
+                    };
+                    let _ = std::fs::write(&path, content);
+                    view.show_export_modal = false;
+                    view.export_path.clear();
+                    view.export_format = None;
                 }
             }
         }
         Task::none()
     }
 
-    fn save_log(&self, content: &str, filename: &str) {
-        // Save to current directory
-        if let Err(e) = std::fs::write(filename, content) {
-            eprintln!("Failed to save log: {}", e);
-        } else {
-            println!("Game log saved to {}", filename);
+    fn save_state_for_undo(&mut self) {
+        if let Some(ref state) = self.game_state {
+            self.undo_stack.push(state.clone());
+            self.redo_stack.clear();
         }
+    }
+
+    fn handle_undo(&mut self) {
+        if let Some(previous_state) = self.undo_stack.pop() {
+            if let Some(current_state) = self.game_state.take() {
+                self.redo_stack.push(current_state);
+            }
+            self.game_state = Some(previous_state);
+            self.board_view.clear_selection();
+            self.update_status();
+        }
+    }
+
+    fn handle_redo(&mut self) {
+        if let Some(next_state) = self.redo_stack.pop() {
+            if let Some(current_state) = self.game_state.take() {
+                self.undo_stack.push(current_state);
+            }
+            self.game_state = Some(next_state);
+            self.board_view.clear_selection();
+            self.update_status();
+        }
+    }
+
+    fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
     }
 
     fn update_status(&mut self) {
@@ -264,17 +368,18 @@ impl KonaneApp {
             AppView::Setup => self.setup.view().map(Message::Setup),
             AppView::Playing => self.playing_view(),
             AppView::GameOver => {
-                // Show game board with overlay
+                // Show game board with popup overlay
+                let board = self.playing_view();
                 if let Some(ref game_over) = self.game_over_view {
                     let overlay = game_over.view().map(Message::GameOver);
-                    container(column![overlay])
+                    let overlay_container = container(overlay)
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .center_x(Length::Fill)
-                        .center_y(Length::Fill)
-                        .into()
+                        .center_y(Length::Fill);
+                    stack![board, overlay_container].into()
                 } else {
-                    self.playing_view()
+                    board
                 }
             }
         }
@@ -288,6 +393,21 @@ impl KonaneApp {
         // Status bar
         let status = text(&self.status_message).size(20);
 
+        // Undo/Redo buttons
+        let undo_btn = button(text("Undo").size(14));
+        let undo_btn = if self.can_undo() {
+            undo_btn.on_press(Message::Board(BoardMessage::Undo))
+        } else {
+            undo_btn
+        };
+
+        let redo_btn = button(text("Redo").size(14));
+        let redo_btn = if self.can_redo() {
+            redo_btn.on_press(Message::Board(BoardMessage::Redo))
+        } else {
+            redo_btn
+        };
+
         // Current player indicator
         let player_indicator = row![
             text("Current: ").size(16),
@@ -295,8 +415,8 @@ impl KonaneApp {
         ]
         .spacing(5);
 
-        let info_bar = row![player_indicator]
-            .spacing(30)
+        let info_bar = row![undo_btn, redo_btn, player_indicator]
+            .spacing(15)
             .align_y(Alignment::Center);
 
         // Board

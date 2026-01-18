@@ -1,6 +1,7 @@
 mod audio;
-mod game;
 mod ui;
+
+use konane::game;
 
 use iced::window;
 use ui::KonaneApp;

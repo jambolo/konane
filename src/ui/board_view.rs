@@ -17,6 +17,8 @@ const ANIMATION_DURATION_MS: u64 = 300;
 pub enum BoardMessage {
     CellClicked(Position),
     JumpSelected(Jump),
+    Undo,
+    Redo,
 }
 
 #[derive(Debug, Clone)]

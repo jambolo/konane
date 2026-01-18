@@ -2,35 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## General Instructions for Claude
-
-### Token Discipline
-
-- Be concise by default.
-- No explanations unless explicitly requested.
-- No restating the question.
-- No summaries at the end.
-- Use bullet points only when clarity improves.
-- Prefer short sentences.
-- Assume reader is expert.
-
-### Output Rules
-
-- Answer the question directly.
-- Do not add context, background, or alternatives unless asked.
-- If uncertain, say "unknown" or ask one clarifying question.
-
-### Code
-
-- Output code only, no commentary.
-- Prefer minimal, idiomatic solutions.
-- Limit comments to very brief descriptions of what the code does. Do not describe why changes were made.
-
-### Interaction
-
-- Ask at most one clarifying question.
-- Never suggest next steps unless requested.
-
 ## Build Commands
 
 ```bash
@@ -44,6 +15,15 @@ cargo test <test_name>         # Run specific test
 cargo clippy                   # Lint
 cargo fmt                      # Format code
 ```
+
+## Version Bumping
+
+1. Read version from `Cargo.toml`, compute next minor version.
+2. Create release branch: `git checkout -b release/<new_version>`.
+3. Update version in `Cargo.toml` and commit.
+4. Verify build: `cargo build --release`.
+5. Merge to master: `git checkout master && git merge release/<new_version>`. Tag: `git tag v<new_version>`. Push: `git push origin master --tags`.
+6. Merge to develop: `git checkout develop && git merge master`. Push: `git push origin develop`.
 
 ## Kōnane Design
 
@@ -97,7 +77,7 @@ Uses algebraic notation conventions matching the rules specification:
 - `Position::to_algebraic()` converts to "a1", "e4" format
 - `Position::from_algebraic()` parses algebraic notation
 
-### Color Placement
+### Initial Stone Placement
 
 - Checkerboard pattern: `(row + col) % 2 == 0` is Black
 - Position a1 (0,0) is always Black per rules ("first lua contains a Black piece")
@@ -137,13 +117,32 @@ Uses algebraic notation conventions matching the rules specification:
 - Animation system uses iced subscriptions for frame updates
 - `RemovalAnimation` tracks position, color, and start time
 
+### Undo/Redo
+
+- State history maintained via `undo_stack` and `redo_stack` in `KonaneApp`
+- `save_state_for_undo()` clones current state before each move
+- Undo/Redo buttons in info bar during play
+- Imported games populate undo stack with full history
+
+### Game Import/Export
+
+- `import.rs`: Validates and replays JSON game files
+- Import modal in setup view
+- Export modal in game over view (Text or JSON format)
+- JSON format: `{ board_size, winner?, moves[] }`
+- Text format: Algebraic notation with result code
+
+### Board Display
+
+- Row and column labels (algebraic notation: a-p, 1-16)
+- Stone images from `data/` directory (`black-stone-15.png`, `white-stone-15.png`)
+- Board scales to fit window
+- Move history panel shows game record in algebraic notation
+
 ### Known Limitations / Future Work
 
-1. **No undo** - Would need state history stack
-2. **No save/load** - GameState is serializable, just need file dialog
-3. **No AI player** - Trait defined, needs minimax/alpha-beta implementation
-4. **No network play** - Would need to serialize moves over socket
-5. **Simple graphics** - Canvas shapes only; image tiles not yet implemented
+1. **No AI player** - Trait defined, needs minimax/alpha-beta implementation
+2. **No network play** - Would need to serialize moves over socket
 
 ## Dependencies
 

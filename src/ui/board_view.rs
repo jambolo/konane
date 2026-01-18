@@ -1,22 +1,26 @@
 use std::time::Instant;
 
+use iced::alignment::{Horizontal, Vertical};
 use iced::mouse;
-use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Path, Stroke};
-use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
+use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text};
+use iced::{Color, Element, Length, Pixels, Point, Rectangle, Renderer, Size, Theme};
 
 use crate::game::rules::Jump;
 use crate::game::{Cell, GamePhase, GameState, PieceColor, Position, Rules};
 
-const CELL_SIZE: f32 = 50.0;
-const PIECE_RADIUS: f32 = 20.0;
-const HOLE_RADIUS: f32 = 22.0;
-const SHADOW_OFFSET: f32 = 3.0;
+static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
+static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
+
+const PADDING: f32 = 20.0;
+const LABEL_MARGIN: f32 = 25.0;
 const ANIMATION_DURATION_MS: u64 = 300;
 
 #[derive(Debug, Clone)]
 pub enum BoardMessage {
     CellClicked(Position),
     JumpSelected(Jump),
+    Undo,
+    Redo,
 }
 
 #[derive(Debug, Clone)]
@@ -114,14 +118,27 @@ struct BoardCanvas<'a> {
     animations: &'a Vec<RemovalAnimation>,
 }
 
+/// Compute cell size to fit board in bounds (accounting for label space)
+fn compute_cell_size(board_size: usize, bounds: Rectangle) -> f32 {
+    let available_width = bounds.width - PADDING * 2.0 - LABEL_MARGIN;
+    let available_height = bounds.height - PADDING * 2.0 - LABEL_MARGIN;
+    let available = available_width.min(available_height).max(0.0);
+    available / board_size as f32
+}
+
 /// Convert board position to screen coordinates
 /// Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP
-fn board_to_screen(pos: Position, board_size: usize, offset_x: f32, offset_y: f32) -> Point {
-    // Flip the row: screen_row = (board_size - 1) - board_row
+fn board_to_screen(
+    pos: Position,
+    board_size: usize,
+    cell_size: f32,
+    offset_x: f32,
+    offset_y: f32,
+) -> Point {
     let screen_row = (board_size - 1) - pos.row;
     Point::new(
-        offset_x + pos.col as f32 * CELL_SIZE + CELL_SIZE / 2.0,
-        offset_y + screen_row as f32 * CELL_SIZE + CELL_SIZE / 2.0,
+        offset_x + pos.col as f32 * cell_size + cell_size / 2.0,
+        offset_y + screen_row as f32 * cell_size + cell_size / 2.0,
     )
 }
 
@@ -130,15 +147,15 @@ fn screen_to_board(
     cursor_x: f32,
     cursor_y: f32,
     board_size: usize,
+    cell_size: f32,
     offset_x: f32,
     offset_y: f32,
 ) -> Option<Position> {
-    let col = ((cursor_x - offset_x) / CELL_SIZE).floor() as isize;
-    let screen_row = ((cursor_y - offset_y) / CELL_SIZE).floor() as isize;
+    let col = ((cursor_x - offset_x) / cell_size).floor() as isize;
+    let screen_row = ((cursor_y - offset_y) / cell_size).floor() as isize;
 
     if screen_row >= 0 && screen_row < board_size as isize && col >= 0 && col < board_size as isize
     {
-        // Convert screen row back to board row
         let board_row = (board_size - 1) - screen_row as usize;
         Some(Position::new(board_row, col as usize))
     } else {
@@ -159,40 +176,56 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
 
+        let board_color = Color::from_rgb(0.2, 0.18, 0.15);
+        let hole_color = Color::from_rgb(0.18, 0.16, 0.13);
+
+        // Clear entire canvas
+        let canvas_bg = Path::rectangle(Point::ORIGIN, bounds.size());
+        frame.fill(&canvas_bg, board_color);
+
         let board_size = self.state.board.size();
-        let board_pixel_size = board_size as f32 * CELL_SIZE;
+        let cell_size = compute_cell_size(board_size, bounds);
+        let board_pixel_size = board_size as f32 * cell_size;
+        let piece_radius = cell_size * 0.4;
+        let hole_radius = cell_size * 0.44;
 
-        // Center the board
-        let offset_x = (bounds.width - board_pixel_size) / 2.0;
-        let offset_y = (bounds.height - board_pixel_size) / 2.0;
+        // Position board with space for labels (row labels on left, column labels on bottom)
+        let offset_x = (bounds.width - board_pixel_size + LABEL_MARGIN) / 2.0;
+        let offset_y = (bounds.height - board_pixel_size - LABEL_MARGIN) / 2.0;
 
-        // Draw board background (lava rock color)
-        let board_bg = Path::rectangle(
-            Point::new(offset_x, offset_y),
-            Size::new(board_pixel_size, board_pixel_size),
-        );
-        frame.fill(&board_bg, Color::from_rgb(0.2, 0.18, 0.15));
+        // Draw row labels (left of board)
+        let label_color = Color::from_rgb(0.9, 0.9, 0.9);
+        let font_size = (cell_size * 0.4).min(16.0);
+        for row in 0..board_size {
+            let label = (row + 1).to_string();
+            let screen_row = (board_size - 1) - row;
+            let x = offset_x - LABEL_MARGIN / 2.0;
+            let y = offset_y + screen_row as f32 * cell_size + cell_size / 2.0;
+            frame.fill_text(Text {
+                content: label,
+                position: Point::new(x, y),
+                color: label_color,
+                size: Pixels(font_size),
+                align_x: Horizontal::Center.into(),
+                align_y: Vertical::Center.into(),
+                ..Text::default()
+            });
+        }
 
-        // Draw grid lines (carved grooves)
-        let groove_color = Color::from_rgb(0.15, 0.13, 0.1);
-        for i in 0..=board_size {
-            let pos = i as f32 * CELL_SIZE;
-            // Horizontal lines
-            frame.stroke(
-                &Path::line(
-                    Point::new(offset_x, offset_y + pos),
-                    Point::new(offset_x + board_pixel_size, offset_y + pos),
-                ),
-                Stroke::default().with_color(groove_color).with_width(1.0),
-            );
-            // Vertical lines
-            frame.stroke(
-                &Path::line(
-                    Point::new(offset_x + pos, offset_y),
-                    Point::new(offset_x + pos, offset_y + board_pixel_size),
-                ),
-                Stroke::default().with_color(groove_color).with_width(1.0),
-            );
+        // Draw column labels (below board)
+        for col in 0..board_size {
+            let label = ((b'a' + col as u8) as char).to_string();
+            let x = offset_x + col as f32 * cell_size + cell_size / 2.0;
+            let y = offset_y + board_pixel_size + LABEL_MARGIN / 2.0;
+            frame.fill_text(Text {
+                content: label,
+                position: Point::new(x, y),
+                color: label_color,
+                size: Pixels(font_size),
+                align_x: Horizontal::Center.into(),
+                align_y: Vertical::Center.into(),
+                ..Text::default()
+            });
         }
 
         // Get valid positions for highlighting
@@ -221,15 +254,15 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
         for row in 0..board_size {
             for col in 0..board_size {
                 let pos = Position::new(row, col);
-                let center = board_to_screen(pos, board_size, offset_x, offset_y);
+                let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
 
                 // Draw hole (indentation)
-                let hole = Path::circle(center, HOLE_RADIUS);
-                frame.fill(&hole, Color::from_rgb(0.12, 0.1, 0.08));
+                let hole = Path::circle(center, hole_radius);
+                frame.fill(&hole, hole_color);
 
                 // Highlight valid removal positions
                 if valid_removals.contains(&pos) {
-                    let highlight = Path::circle(center, HOLE_RADIUS + 2.0);
+                    let highlight = Path::circle(center, hole_radius + 2.0);
                     frame.stroke(
                         &highlight,
                         Stroke::default()
@@ -240,7 +273,7 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
 
                 // Highlight movable pieces
                 if movable_pieces.contains(&pos) && selected_pos.is_none() {
-                    let highlight = Path::circle(center, HOLE_RADIUS + 2.0);
+                    let highlight = Path::circle(center, hole_radius + 2.0);
                     frame.stroke(
                         &highlight,
                         Stroke::default()
@@ -251,7 +284,7 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
 
                 // Highlight selected piece
                 if selected_pos == Some(pos) {
-                    let highlight = Path::circle(center, HOLE_RADIUS + 3.0);
+                    let highlight = Path::circle(center, hole_radius + 3.0);
                     frame.stroke(
                         &highlight,
                         Stroke::default()
@@ -262,7 +295,7 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
 
                 // Highlight valid destinations
                 if valid_destinations.contains(&pos) {
-                    let highlight = Path::circle(center, HOLE_RADIUS);
+                    let highlight = Path::circle(center, hole_radius);
                     frame.fill(&highlight, Color::from_rgba(0.0, 1.0, 0.0, 0.3));
                     frame.stroke(
                         &highlight,
@@ -275,18 +308,18 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
                 // Draw piece if present (and not being animated away)
                 let is_animating = self.animations.iter().any(|a| a.position == pos);
                 if !is_animating && let Some(Cell::Occupied(color)) = self.state.board.get(pos) {
-                    draw_piece(&mut frame, center, color, 1.0);
+                    draw_piece(&mut frame, center, piece_radius, color, 1.0);
                 }
             }
         }
 
         // Draw animating pieces (fading out and shrinking)
         for anim in self.animations {
-            let center = board_to_screen(anim.position, board_size, offset_x, offset_y);
+            let center = board_to_screen(anim.position, board_size, cell_size, offset_x, offset_y);
             let progress = anim.progress();
             let alpha = 1.0 - progress;
-            let scale = 1.0 - (progress * 0.5); // Shrink to 50% size
-            draw_piece_animated(&mut frame, center, anim.color, alpha, scale);
+            let scale = 1.0 - (progress * 0.5);
+            draw_piece_animated(&mut frame, center, piece_radius, anim.color, alpha, scale);
         }
 
         vec![frame.into_geometry()]
@@ -303,14 +336,16 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
             && let Some(cursor_position) = cursor.position_in(bounds)
         {
             let board_size = self.state.board.size();
-            let board_pixel_size = board_size as f32 * CELL_SIZE;
-            let offset_x = (bounds.width - board_pixel_size) / 2.0;
-            let offset_y = (bounds.height - board_pixel_size) / 2.0;
+            let cell_size = compute_cell_size(board_size, bounds);
+            let board_pixel_size = board_size as f32 * cell_size;
+            let offset_x = (bounds.width - board_pixel_size + LABEL_MARGIN) / 2.0;
+            let offset_y = (bounds.height - board_pixel_size - LABEL_MARGIN) / 2.0;
 
             if let Some(pos) = screen_to_board(
                 cursor_position.x,
                 cursor_position.y,
                 board_size,
+                cell_size,
                 offset_x,
                 offset_y,
             ) {
@@ -334,40 +369,31 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
     }
 }
 
-fn draw_piece(frame: &mut Frame, center: Point, color: PieceColor, alpha: f32) {
-    draw_piece_animated(frame, center, color, alpha, 1.0);
+fn draw_piece(frame: &mut Frame, center: Point, piece_radius: f32, color: PieceColor, alpha: f32) {
+    draw_piece_animated(frame, center, piece_radius, color, alpha, 1.0);
 }
 
 fn draw_piece_animated(
     frame: &mut Frame,
     center: Point,
+    piece_radius: f32,
     color: PieceColor,
     alpha: f32,
     scale: f32,
 ) {
-    let radius = PIECE_RADIUS * scale;
+    let stone_size = piece_radius * 2.0 * scale;
+    let half_size = stone_size / 2.0;
 
-    // Shadow
-    let shadow_offset = SHADOW_OFFSET * scale;
-    let shadow_center = Point::new(center.x + shadow_offset, center.y + shadow_offset);
-    let shadow = Path::circle(shadow_center, radius);
-    frame.fill(&shadow, Color::from_rgba(0.0, 0.0, 0.0, 0.4 * alpha));
-
-    // Piece
-    let piece = Path::circle(center, radius);
-    let piece_color = match color {
-        PieceColor::Black => Color::from_rgba(0.1, 0.1, 0.1, alpha),
-        PieceColor::White => Color::from_rgba(0.95, 0.93, 0.88, alpha),
+    let path = match color {
+        PieceColor::Black => BLACK_STONE_PATH,
+        PieceColor::White => WHITE_STONE_PATH,
     };
-    frame.fill(&piece, piece_color);
 
-    // Highlight on piece
-    let highlight_offset = 5.0 * scale;
-    let highlight_center = Point::new(center.x - highlight_offset, center.y - highlight_offset);
-    let highlight = Path::circle(highlight_center, 5.0 * scale);
-    let highlight_color = match color {
-        PieceColor::Black => Color::from_rgba(1.0, 1.0, 1.0, 0.15 * alpha),
-        PieceColor::White => Color::from_rgba(1.0, 1.0, 1.0, 0.5 * alpha),
-    };
-    frame.fill(&highlight, highlight_color);
+    let handle = iced::widget::image::Handle::from_path(path);
+    let image = Image::new(handle)
+        .opacity(alpha)
+        .filter_method(iced::widget::image::FilterMethod::Linear);
+
+    let top_left = Point::new(center.x - half_size, center.y - half_size);
+    frame.draw_image(Rectangle::new(top_left, Size::new(stone_size, stone_size)), image);
 }

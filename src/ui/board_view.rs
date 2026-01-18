@@ -1,8 +1,9 @@
 use std::time::Instant;
 
+use iced::alignment::{Horizontal, Vertical};
 use iced::mouse;
-use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke};
-use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
+use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text};
+use iced::{Color, Element, Length, Pixels, Point, Rectangle, Renderer, Size, Theme};
 
 use crate::game::rules::Jump;
 use crate::game::{Cell, GamePhase, GameState, PieceColor, Position, Rules};
@@ -11,6 +12,7 @@ static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
 static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
 
 const PADDING: f32 = 20.0;
+const LABEL_MARGIN: f32 = 25.0;
 const ANIMATION_DURATION_MS: u64 = 300;
 
 #[derive(Debug, Clone)]
@@ -116,9 +118,11 @@ struct BoardCanvas<'a> {
     animations: &'a Vec<RemovalAnimation>,
 }
 
-/// Compute cell size to fit board in bounds
+/// Compute cell size to fit board in bounds (accounting for label space)
 fn compute_cell_size(board_size: usize, bounds: Rectangle) -> f32 {
-    let available = (bounds.width.min(bounds.height) - PADDING * 2.0).max(0.0);
+    let available_width = bounds.width - PADDING * 2.0 - LABEL_MARGIN;
+    let available_height = bounds.height - PADDING * 2.0 - LABEL_MARGIN;
+    let available = available_width.min(available_height).max(0.0);
     available / board_size as f32
 }
 
@@ -185,9 +189,44 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
         let piece_radius = cell_size * 0.4;
         let hole_radius = cell_size * 0.44;
 
-        // Center the board
-        let offset_x = (bounds.width - board_pixel_size) / 2.0;
-        let offset_y = (bounds.height - board_pixel_size) / 2.0;
+        // Position board with space for labels (row labels on left, column labels on bottom)
+        let offset_x = (bounds.width - board_pixel_size + LABEL_MARGIN) / 2.0;
+        let offset_y = (bounds.height - board_pixel_size - LABEL_MARGIN) / 2.0;
+
+        // Draw row labels (left of board)
+        let label_color = Color::from_rgb(0.9, 0.9, 0.9);
+        let font_size = (cell_size * 0.4).min(16.0);
+        for row in 0..board_size {
+            let label = (row + 1).to_string();
+            let screen_row = (board_size - 1) - row;
+            let x = offset_x - LABEL_MARGIN / 2.0;
+            let y = offset_y + screen_row as f32 * cell_size + cell_size / 2.0;
+            frame.fill_text(Text {
+                content: label,
+                position: Point::new(x, y),
+                color: label_color,
+                size: Pixels(font_size),
+                align_x: Horizontal::Center.into(),
+                align_y: Vertical::Center.into(),
+                ..Text::default()
+            });
+        }
+
+        // Draw column labels (below board)
+        for col in 0..board_size {
+            let label = ((b'a' + col as u8) as char).to_string();
+            let x = offset_x + col as f32 * cell_size + cell_size / 2.0;
+            let y = offset_y + board_pixel_size + LABEL_MARGIN / 2.0;
+            frame.fill_text(Text {
+                content: label,
+                position: Point::new(x, y),
+                color: label_color,
+                size: Pixels(font_size),
+                align_x: Horizontal::Center.into(),
+                align_y: Vertical::Center.into(),
+                ..Text::default()
+            });
+        }
 
         // Get valid positions for highlighting
         let valid_removals = match self.state.phase {
@@ -299,8 +338,8 @@ impl<'a> canvas::Program<BoardMessage> for BoardCanvas<'a> {
             let board_size = self.state.board.size();
             let cell_size = compute_cell_size(board_size, bounds);
             let board_pixel_size = board_size as f32 * cell_size;
-            let offset_x = (bounds.width - board_pixel_size) / 2.0;
-            let offset_y = (bounds.height - board_pixel_size) / 2.0;
+            let offset_x = (bounds.width - board_pixel_size + LABEL_MARGIN) / 2.0;
+            let offset_y = (bounds.height - board_pixel_size - LABEL_MARGIN) / 2.0;
 
             if let Some(pos) = screen_to_board(
                 cursor_position.x,

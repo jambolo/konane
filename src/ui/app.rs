@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::widget::{button, column, container, row, stack, text};
+use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{Alignment, Element, Length, Subscription, Task};
 use konane::import;
 
@@ -422,7 +422,24 @@ impl KonaneApp {
         // Board
         let board = self.board_view.view(state).map(Message::Board);
 
-        let content = column![status, info_bar, board,]
+        // Move list
+        let mut move_list = column![].spacing(4);
+        for (i, record) in state.move_history.iter().enumerate() {
+            move_list = move_list.push(text(format!("{}. {}", i + 1, record.to_algebraic())).size(14));
+        }
+        let move_list_padded = row![move_list, iced::widget::Space::new().width(15.0)];
+        let move_panel = container(
+            scrollable(move_list_padded)
+                .height(Length::Fill)
+                .width(Length::Fill),
+        )
+        .width(Length::Fixed(150.0))
+        .height(Length::Fill)
+        .padding(10);
+
+        let board_row = row![board, move_panel].spacing(10);
+
+        let content = column![status, info_bar, board_row]
             .spacing(10)
             .padding(20)
             .align_x(Alignment::Center);

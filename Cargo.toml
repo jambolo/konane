@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "game-player"]
+resolver = "2"
+
 [package]
 name = "konane"
 version = "0.3.0"
@@ -15,3 +19,4 @@ chrono = { version = "0.4", features = ["serde"] }
 rand = "0.9"
 ndarray = "0.17"
 kira = { version = "0.11", optional = true }
+game-player = { path = "game-player" }

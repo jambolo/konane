@@ -1,0 +1,101 @@
+{
+  "board_size": 4,
+  "winner": "White",
+  "total_moves": 6,
+  "moves": [
+    {
+      "OpeningRemoval": {
+        "color": "Black",
+        "position": {
+          "row": 2,
+          "col": 2
+        }
+      }
+    },
+    {
+      "OpeningRemoval": {
+        "color": "White",
+        "position": {
+          "row": 1,
+          "col": 2
+        }
+      }
+    },
+    {
+      "Jump": {
+        "color": "Black",
+        "from": {
+          "row": 2,
+          "col": 0
+        },
+        "to": {
+          "row": 2,
+          "col": 2
+        },
+        "captured": [
+          {
+            "row": 2,
+            "col": 1
+          }
+        ]
+      }
+    },
+    {
+      "Jump": {
+        "color": "White",
+        "from": {
+          "row": 1,
+          "col": 0
+        },
+        "to": {
+          "row": 1,
+          "col": 2
+        },
+        "captured": [
+          {
+            "row": 1,
+            "col": 1
+          }
+        ]
+      }
+    },
+    {
+      "Jump": {
+        "color": "Black",
+        "from": {
+          "row": 1,
+          "col": 3
+        },
+        "to": {
+          "row": 1,
+          "col": 1
+        },
+        "captured": [
+          {
+            "row": 1,
+            "col": 2
+          }
+        ]
+      }
+    },
+    {
+      "Jump": {
+        "color": "White",
+        "from": {
+          "row": 2,
+          "col": 3
+        },
+        "to": {
+          "row": 2,
+          "col": 1
+        },
+        "captured": [
+          {
+            "row": 2,
+            "col": 2
+          }
+        ]
+      }
+    }
+  ]
+}

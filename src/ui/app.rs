@@ -5,11 +5,12 @@ use iced::{Alignment, Element, Length, Subscription, Task};
 use konane::import;
 
 use crate::audio::GameAudio;
+use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
-use crate::game::{GamePhase, GameState, PieceColor, Position, Rules};
+use crate::game::{AiPlayer, GamePhase, GameState, PieceColor, Position, Rules};
 use crate::ui::board_view::{BoardMessage, BoardView};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
-use crate::ui::setup_view::{SetupMessage, SetupView};
+use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -17,6 +18,7 @@ pub enum Message {
     Board(BoardMessage),
     GameOver(GameOverMessage),
     Tick,
+    AiMoveComputed(Option<PlayerMove>),
 }
 
 pub enum AppView {
@@ -35,6 +37,9 @@ pub struct KonaneApp {
     audio: GameAudio,
     undo_stack: Vec<GameState>,
     redo_stack: Vec<GameState>,
+    black_player_type: PlayerType,
+    white_player_type: PlayerType,
+    ai_computing: bool,
 }
 
 impl Default for KonaneApp {
@@ -49,6 +54,9 @@ impl Default for KonaneApp {
             audio: GameAudio::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            black_player_type: PlayerType::Human,
+            white_player_type: PlayerType::Human,
+            ai_computing: false,
         }
     }
 }
@@ -71,6 +79,7 @@ impl KonaneApp {
                 self.board_view.update_animations();
                 Task::none()
             }
+            Message::AiMoveComputed(maybe_move) => self.handle_ai_move(maybe_move),
         }
     }
 
@@ -91,14 +100,24 @@ impl KonaneApp {
             SetupMessage::ColorOptionSelected(option) => {
                 self.setup.color_option = option;
             }
+            SetupMessage::BlackPlayerTypeSelected(player_type) => {
+                self.setup.black_player_type = player_type;
+            }
+            SetupMessage::WhitePlayerTypeSelected(player_type) => {
+                self.setup.white_player_type = player_type;
+            }
             SetupMessage::StartGame => {
                 let first_player = self.setup.color_option.to_piece_color();
                 self.game_state = Some(GameState::new(self.setup.board_size, first_player));
                 self.board_view = BoardView::default();
                 self.undo_stack.clear();
                 self.redo_stack.clear();
+                self.black_player_type = self.setup.black_player_type;
+                self.white_player_type = self.setup.white_player_type;
+                self.ai_computing = false;
                 self.view = AppView::Playing;
                 self.update_status();
+                return self.maybe_trigger_ai_move();
             }
             SetupMessage::ShowImportModal => {
                 self.setup.show_import_modal = true;
@@ -143,6 +162,14 @@ impl KonaneApp {
             return Task::none();
         }
 
+        // Block UI input if AI is computing or if it's an AI's turn
+        if self.ai_computing || self.is_current_player_ai() {
+            match msg {
+                BoardMessage::Undo | BoardMessage::Redo => {}
+                _ => return Task::none(),
+            }
+        }
+
         match msg {
             BoardMessage::CellClicked(pos) => {
                 self.handle_cell_click(pos);
@@ -168,9 +195,11 @@ impl KonaneApp {
                 state.board.size(),
             ));
             self.view = AppView::GameOver;
+            return Task::none();
         }
 
-        Task::none()
+        // Trigger AI if needed
+        self.maybe_trigger_ai_move()
     }
 
     fn handle_cell_click(&mut self, pos: Position) {
@@ -348,21 +377,154 @@ impl KonaneApp {
             return;
         };
 
+        let is_ai = self.is_current_player_ai();
+        let ai_suffix = if is_ai { " (AI)" } else { "" };
+
         self.status_message = match state.phase {
             GamePhase::OpeningBlackRemoval => {
-                "Black: Remove a black piece from the center or a corner".to_string()
+                format!(
+                    "Black{}: Remove a black piece from the center or a corner",
+                    ai_suffix
+                )
             }
             GamePhase::OpeningWhiteRemoval => {
-                "White: Remove a white piece adjacent to the empty space".to_string()
+                format!(
+                    "White{}: Remove a white piece adjacent to the empty space",
+                    ai_suffix
+                )
             }
             GamePhase::Play => {
-                format!("{}'s turn - Select a piece to move", state.current_player)
+                if self.ai_computing {
+                    format!("{}{} is thinking...", state.current_player, ai_suffix)
+                } else {
+                    format!(
+                        "{}{}'s turn - Select a piece to move",
+                        state.current_player, ai_suffix
+                    )
+                }
             }
             GamePhase::GameOver { winner } => {
                 format!("{} wins!", winner)
             }
             _ => String::new(),
         };
+    }
+
+    fn is_current_player_ai(&self) -> bool {
+        let Some(ref state) = self.game_state else {
+            return false;
+        };
+        match state.current_player {
+            PieceColor::Black => self.black_player_type == PlayerType::Ai,
+            PieceColor::White => self.white_player_type == PlayerType::Ai,
+        }
+    }
+
+    fn maybe_trigger_ai_move(&mut self) -> Task<Message> {
+        if self.ai_computing {
+            return Task::none();
+        }
+
+        let Some(ref state) = self.game_state else {
+            return Task::none();
+        };
+
+        if matches!(state.phase, GamePhase::GameOver { .. }) {
+            return Task::none();
+        }
+
+        if !self.is_current_player_ai() {
+            return Task::none();
+        }
+
+        let state_clone = state.clone();
+        let depth = 15; // AI search depth
+
+        self.ai_computing = true;
+        self.update_status();
+
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut ai = AiPlayer::new(state_clone.current_player, depth);
+                    ai.request_move(&state_clone)
+                })
+                .await
+                .ok()
+                .flatten()
+            },
+            Message::AiMoveComputed,
+        )
+    }
+
+    fn handle_ai_move(&mut self, maybe_move: Option<PlayerMove>) -> Task<Message> {
+        self.ai_computing = false;
+
+        let Some(player_move) = maybe_move else {
+            self.update_status();
+            return Task::none();
+        };
+
+        match player_move {
+            PlayerMove::OpeningRemoval(pos) => {
+                let Some(ref mut state) = self.game_state else {
+                    return Task::none();
+                };
+                let color = state
+                    .board
+                    .get_piece_color(pos)
+                    .unwrap_or(state.current_player);
+                self.save_state_for_undo();
+                let state = self.game_state.as_mut().unwrap();
+                let _ = Rules::apply_opening_removal(state, pos);
+                self.board_view.animate_removal(pos, color);
+                self.audio.play_capture();
+                self.board_view.clear_selection();
+            }
+            PlayerMove::Jump(jump) => {
+                let Some(ref state) = self.game_state else {
+                    return Task::none();
+                };
+                let captured_info: Vec<(Position, PieceColor)> = jump
+                    .captured
+                    .iter()
+                    .filter_map(|&pos| state.board.get_piece_color(pos).map(|color| (pos, color)))
+                    .collect();
+
+                self.save_state_for_undo();
+                let state = self.game_state.as_mut().unwrap();
+                Rules::apply_jump(state, &jump);
+
+                for (pos, color) in captured_info {
+                    self.board_view.animate_removal(pos, color);
+                }
+
+                self.audio.play_move();
+                for _ in 0..jump.captured.len() {
+                    self.audio.play_capture();
+                }
+
+                self.board_view.clear_selection();
+            }
+        }
+
+        self.update_status();
+
+        // Check for game over
+        if let Some(ref state) = self.game_state
+            && let GamePhase::GameOver { winner } = state.phase
+        {
+            self.game_over_view = Some(GameOverView::new(
+                winner,
+                state.move_history.clone(),
+                state.board.size(),
+            ));
+            self.view = AppView::GameOver;
+            return Task::none();
+        }
+
+        // Continue with next AI move if needed
+        self.maybe_trigger_ai_move()
     }
 
     pub fn view(&self) -> Element<'_, Message> {

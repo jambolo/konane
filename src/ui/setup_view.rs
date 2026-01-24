@@ -5,9 +5,12 @@ use rand::Rng;
 use crate::game::PieceColor;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SetupMessage {
     BoardSizeSelected(usize),
     ColorOptionSelected(ColorOption),
+    BlackPlayerTypeSelected(PlayerType),
+    WhitePlayerTypeSelected(PlayerType),
     StartGame,
     ImportGame,
     ShowImportModal,
@@ -15,7 +18,15 @@ pub enum SetupMessage {
     CancelImport,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlayerType {
+    #[default]
+    Human,
+    Ai,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ColorOption {
     Black,
     White,
@@ -51,6 +62,8 @@ impl ColorOption {
 pub struct SetupView {
     pub board_size: usize,
     pub color_option: ColorOption,
+    pub black_player_type: PlayerType,
+    pub white_player_type: PlayerType,
     pub show_import_modal: bool,
     pub import_path: String,
     pub import_error: Option<String>,
@@ -61,6 +74,8 @@ impl Default for SetupView {
         Self {
             board_size: 8,
             color_option: ColorOption::Black,
+            black_player_type: PlayerType::Human,
+            white_player_type: PlayerType::Ai,
             show_import_modal: false,
             import_path: String::new(),
             import_error: None,
@@ -88,28 +103,39 @@ impl SetupView {
             .spacing(10)
             .align_y(Alignment::Center);
 
-        // Player 1 color selector
-        let color_label = text("Player 1 Color:").size(18);
-        let black_radio = radio(
-            "Black (moves first)",
-            ColorOption::Black,
-            Some(self.color_option),
-            SetupMessage::ColorOptionSelected,
+        // Black player type selector
+        let black_player_label = text("Black Player:").size(18);
+        let black_human_radio = radio(
+            "Human",
+            PlayerType::Human,
+            Some(self.black_player_type),
+            SetupMessage::BlackPlayerTypeSelected,
         );
-        let white_radio = radio(
-            "White",
-            ColorOption::White,
-            Some(self.color_option),
-            SetupMessage::ColorOptionSelected,
+        let black_ai_radio = radio(
+            "AI",
+            PlayerType::Ai,
+            Some(self.black_player_type),
+            SetupMessage::BlackPlayerTypeSelected,
         );
-        let random_radio = radio(
-            "Random",
-            ColorOption::Random,
-            Some(self.color_option),
-            SetupMessage::ColorOptionSelected,
-        );
+        let black_player_row = row![black_human_radio, black_ai_radio].spacing(20);
+        let black_player_column = column![black_player_label, black_player_row].spacing(8);
 
-        let color_column = column![color_label, black_radio, white_radio, random_radio].spacing(8);
+        // White player type selector
+        let white_player_label = text("White Player:").size(18);
+        let white_human_radio = radio(
+            "Human",
+            PlayerType::Human,
+            Some(self.white_player_type),
+            SetupMessage::WhitePlayerTypeSelected,
+        );
+        let white_ai_radio = radio(
+            "AI",
+            PlayerType::Ai,
+            Some(self.white_player_type),
+            SetupMessage::WhitePlayerTypeSelected,
+        );
+        let white_player_row = row![white_human_radio, white_ai_radio].spacing(20);
+        let white_player_column = column![white_player_label, white_player_row].spacing(8);
 
         // Start button
         let start_button = button(text("Start Game").size(20))
@@ -128,7 +154,9 @@ impl SetupView {
             text("").height(Length::Fixed(30.0)),
             size_row,
             text("").height(Length::Fixed(20.0)),
-            color_column,
+            black_player_column,
+            text("").height(Length::Fixed(10.0)),
+            white_player_column,
             text("").height(Length::Fixed(30.0)),
             start_button,
             text("").height(Length::Fixed(10.0)),

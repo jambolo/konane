@@ -1,0 +1,3 @@
+[submodule "game-player"]
+	path = game-player
+	url = git@github.com:jambolo/game-player.git

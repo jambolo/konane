@@ -1303,6 +1303,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "game-player"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "static_assertions",
+]
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1880,15 +1888,17 @@ dependencies = [
 
 [[package]]
 name = "konane"
-version = "0.3.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
+ "game-player",
  "iced",
  "kira",
  "ndarray",
  "rand",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

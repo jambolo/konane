@@ -12,14 +12,12 @@ pub struct ImportedGame {
 }
 
 pub fn import_game_from_path(path: &str) -> Result<(GameState, Vec<GameState>), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|err| format!("Failed to read file: {}", err))?;
+    let content = std::fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))?;
     import_game_from_content(&content)
 }
 
 pub fn import_game_from_content(content: &str) -> Result<(GameState, Vec<GameState>), String> {
-    let imported: ImportedGame = serde_json::from_str(content)
-        .map_err(|err| format!("Invalid JSON: {}", err))?;
+    let imported: ImportedGame = serde_json::from_str(content).map_err(|err| format!("Invalid JSON: {}", err))?;
 
     validate_board_size(imported.board_size)?;
 
@@ -44,16 +42,11 @@ fn validate_board_size(board_size: usize) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_and_apply_move(
-    state: &mut GameState,
-    record: MoveRecord,
-    move_number: usize,
-) -> Result<(), String> {
+fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_number: usize) -> Result<(), String> {
     match record {
         MoveRecord::OpeningRemoval { color, position } => {
             validate_opening_removal(state, color, position, move_number)?;
-            Rules::apply_opening_removal(state, position)
-                .map_err(|err| format!("Move {}: {}", move_number, err))?;
+            Rules::apply_opening_removal(state, position).map_err(|err| format!("Move {}: {}", move_number, err))?;
         }
         MoveRecord::Jump {
             color,
@@ -69,16 +62,8 @@ fn validate_and_apply_move(
     Ok(())
 }
 
-fn validate_opening_removal(
-    state: &GameState,
-    color: PieceColor,
-    position: Position,
-    move_number: usize,
-) -> Result<(), String> {
-    if !matches!(
-        state.phase,
-        GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval
-    ) {
+fn validate_opening_removal(state: &GameState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
+    if !matches!(state.phase, GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval) {
         return Err(format!(
             "Move {}: Opening removal not allowed during {:?}",
             move_number, state.phase
@@ -106,10 +91,7 @@ fn validate_jump(
     move_number: usize,
 ) -> Result<Jump, String> {
     if !matches!(state.phase, GamePhase::Play) {
-        return Err(format!(
-            "Move {}: Jump not allowed during {:?}",
-            move_number, state.phase
-        ));
+        return Err(format!("Move {}: Jump not allowed during {:?}", move_number, state.phase));
     }
 
     if color != state.current_player {
@@ -123,10 +105,7 @@ fn validate_jump(
     validate_position_in_bounds(state, to, move_number, "To position")?;
 
     if captured.is_empty() {
-        return Err(format!(
-            "Move {}: Jump must capture at least one piece",
-            move_number
-        ));
+        return Err(format!("Move {}: Jump must capture at least one piece", move_number));
     }
 
     for pos in captured {
@@ -139,27 +118,16 @@ fn validate_jump(
         .find(|jump| jump.to == to && jump.captured == captured);
 
     let Some(jump) = matching_jump else {
-        return Err(format!(
-            "Move {}: Invalid jump from {} to {}",
-            move_number, from, to
-        ));
+        return Err(format!("Move {}: Invalid jump from {} to {}", move_number, from, to));
     };
 
     Ok(jump)
 }
 
-fn validate_position_in_bounds(
-    state: &GameState,
-    position: Position,
-    move_number: usize,
-    label: &str,
-) -> Result<(), String> {
+fn validate_position_in_bounds(state: &GameState, position: Position, move_number: usize, label: &str) -> Result<(), String> {
     let size = state.board.size();
     if position.row >= size || position.col >= size {
-        return Err(format!(
-            "Move {}: {} {} is out of bounds",
-            move_number, label, position
-        ));
+        return Err(format!("Move {}: {} {} is out of bounds", move_number, label, position));
     }
     Ok(())
 }
@@ -174,10 +142,7 @@ fn validate_winner(state: &GameState, winner: Option<String>) -> Result<(), Stri
     match state.phase {
         GamePhase::GameOver { winner: actual } => {
             if actual != winner_color {
-                return Err(format!(
-                    "Winner mismatch: expected {}, got {}",
-                    winner_color, actual
-                ));
+                return Err(format!("Winner mismatch: expected {}, got {}", winner_color, actual));
             }
         }
         _ => {

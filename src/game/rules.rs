@@ -83,9 +83,7 @@ impl Rules {
         let mut jumps = Vec::new();
 
         for direction in Direction::all() {
-            if let Some((captured_pos, to)) =
-                Self::is_valid_single_jump(board, from, direction, player)
-            {
+            if let Some((captured_pos, to)) = Self::is_valid_single_jump(board, from, direction, player) {
                 // Single jump
                 jumps.push(Jump {
                     from,
@@ -107,9 +105,7 @@ impl Rules {
                     // First reset the test board state for checking
                     test_board.set(current_to, Cell::Empty);
 
-                    if let Some((next_captured, next_to)) =
-                        Self::is_valid_single_jump(&test_board, current_to, direction, player)
-                    {
+                    if let Some((next_captured, next_to)) = Self::is_valid_single_jump(&test_board, current_to, direction, player) {
                         // Restore piece and update for next iteration
                         test_board.set(current_to, Cell::Occupied(player));
                         test_board.remove(next_captured);
@@ -287,10 +283,7 @@ mod tests {
             let valid = Rules::valid_black_opening_removals(&state);
 
             for pos in &valid {
-                assert_eq!(
-                    state.board.get_piece_color(*pos),
-                    Some(PieceColor::Black)
-                );
+                assert_eq!(state.board.get_piece_color(*pos), Some(PieceColor::Black));
             }
         }
     }
@@ -563,10 +556,7 @@ mod tests {
             Rules::apply_jump(&mut state, &jump);
 
             assert!(state.board.is_empty(Position::new(0, 0)));
-            assert_eq!(
-                state.board.get_piece_color(Position::new(0, 2)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(state.board.get_piece_color(Position::new(0, 2)), Some(PieceColor::Black));
         }
 
         #[test]
@@ -646,9 +636,7 @@ mod tests {
             for row in 0..4 {
                 for col in 0..4 {
                     let pos = Position::new(row, col);
-                    if pos != Position::new(0, 1)
-                        && state.board.get_piece_color(pos) == Some(PieceColor::White)
-                    {
+                    if pos != Position::new(0, 1) && state.board.get_piece_color(pos) == Some(PieceColor::White) {
                         state.board.remove(pos);
                     }
                 }
@@ -792,10 +780,7 @@ mod tests {
             assert!(state.board.is_empty(Position::new(0, 3)));
 
             // Piece should be at e1
-            assert_eq!(
-                state.board.get_piece_color(Position::new(0, 4)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(state.board.get_piece_color(Position::new(0, 4)), Some(PieceColor::Black));
         }
     }
 }

@@ -3,7 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use game_player::minimax::{search, ResponseGenerator};
+use game_player::minimax::{ResponseGenerator, search};
 use game_player::{PlayerId, State, StaticEvaluator, TranspositionTable};
 
 use crate::game::player::{Player, PlayerInput, PlayerMove};
@@ -111,9 +111,7 @@ fn count_mobility_for(state: &GameState, color: PieceColor) -> i32 {
     temp_state.current_player = color;
 
     match temp_state.phase {
-        GamePhase::Play | GamePhase::GameOver { .. } => {
-            Rules::all_valid_jumps(&temp_state).len() as i32
-        }
+        GamePhase::Play | GamePhase::GameOver { .. } => Rules::all_valid_jumps(&temp_state).len() as i32,
         _ => 0,
     }
 }
@@ -441,9 +439,7 @@ mod tests {
 
             assert!(!moves.is_empty());
             // Should contain at least one jump
-            assert!(moves
-                .iter()
-                .any(|mv| matches!(mv.last_action, Some(KonaneAction::Jump(_)))));
+            assert!(moves.iter().any(|mv| matches!(mv.last_action, Some(KonaneAction::Jump(_)))));
         }
 
         #[test]

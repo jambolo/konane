@@ -2,11 +2,9 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use iced::mouse;
-use iced::widget::canvas::{
-    self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text,
-};
-use iced::widget::image::Handle;
 use iced::widget::Stack;
+use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text};
+use iced::widget::image::Handle;
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
 
 use crate::game::rules::Jump;
@@ -14,7 +12,7 @@ use crate::game::{Cell, GamePhase, GameState, PieceColor, Position, Rules};
 
 static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
 static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
-static BACKGROUND_PATH: &str = "data/background.jpg";
+static BACKGROUND_PATH: &str = "data/background.png";
 
 static BLACK_STONE: OnceLock<Handle> = OnceLock::new();
 static WHITE_STONE: OnceLock<Handle> = OnceLock::new();
@@ -226,13 +224,7 @@ fn compute_board_layout(board_size: usize, bounds: Rectangle) -> (f32, f32, f32)
 
 /// Convert board position to screen coordinates
 /// Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP
-fn board_to_screen(
-    pos: Position,
-    board_size: usize,
-    cell_size: f32,
-    offset_x: f32,
-    offset_y: f32,
-) -> Point {
+fn board_to_screen(pos: Position, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32) -> Point {
     let screen_row = (board_size - 1) - pos.row;
     Point::new(
         offset_x + pos.col as f32 * cell_size + cell_size / 2.0,
@@ -252,8 +244,7 @@ fn screen_to_board(
     let col = ((cursor_x - offset_x) / cell_size).floor() as isize;
     let screen_row = ((cursor_y - offset_y) / cell_size).floor() as isize;
 
-    if screen_row >= 0 && screen_row < board_size as isize && col >= 0 && col < board_size as isize
-    {
+    if screen_row >= 0 && screen_row < board_size as isize && col >= 0 && col < board_size as isize {
         let board_row = (board_size - 1) - screen_row as usize;
         Some(Position::new(board_row, col as usize))
     } else {
@@ -283,18 +274,21 @@ impl<'a> canvas::Program<BoardMessage> for BackgroundCanvas<'a> {
 }
 
 impl<'a> BackgroundCanvas<'a> {
-    fn draw_tiled_background_with_labels(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
-        let image = Image::new(get_background_tile())
-            .filter_method(iced::widget::image::FilterMethod::Linear);
+    fn draw_tiled_background_with_labels(
+        &self,
+        board_size: usize,
+        cell_size: f32,
+        offset_x: f32,
+        offset_y: f32,
+        frame: &mut Frame<Renderer>,
+    ) {
+        let image = Image::new(get_background_tile()).filter_method(iced::widget::image::FilterMethod::Linear);
 
         for row in 0..board_size {
             for col in 0..board_size {
                 let pos = Position::new(row, col);
                 let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
-                let top_left = Point::new(
-                    center.x - cell_size / 2.0,
-                    center.y - cell_size / 2.0,
-                );
+                let top_left = Point::new(center.x - cell_size / 2.0, center.y - cell_size / 2.0);
                 frame.draw_image(Rectangle::new(top_left, Size::new(cell_size, cell_size)), image.clone());
             }
         }
@@ -378,14 +372,13 @@ impl<'a> HighlightCanvas<'a> {
             Vec::new()
         };
 
-        let (selected_pos, valid_destinations): (Option<Position>, Vec<Position>) =
-            match self.selection {
-                SelectionState::PieceSelected(pos, jumps) => {
-                    let destinations: Vec<Position> = jumps.iter().map(|j| j.to).collect();
-                    (Some(*pos), destinations)
-                }
-                SelectionState::None => (None, Vec::new()),
-            };
+        let (selected_pos, valid_destinations): (Option<Position>, Vec<Position>) = match self.selection {
+            SelectionState::PieceSelected(pos, jumps) => {
+                let destinations: Vec<Position> = jumps.iter().map(|j| j.to).collect();
+                (Some(*pos), destinations)
+            }
+            SelectionState::None => (None, Vec::new()),
+        };
 
         for row in 0..board_size {
             for col in 0..board_size {
@@ -396,9 +389,7 @@ impl<'a> HighlightCanvas<'a> {
                     let highlight = Path::circle(center, hole_radius + 2.0);
                     frame.stroke(
                         &highlight,
-                        Stroke::default()
-                            .with_color(Color::from_rgb(0.0, 0.8, 0.0))
-                            .with_width(3.0),
+                        Stroke::default().with_color(Color::from_rgb(0.0, 0.8, 0.0)).with_width(3.0),
                     );
                 }
 
@@ -406,9 +397,7 @@ impl<'a> HighlightCanvas<'a> {
                     let highlight = Path::circle(center, hole_radius + 2.0);
                     frame.stroke(
                         &highlight,
-                        Stroke::default()
-                            .with_color(Color::from_rgb(0.3, 0.7, 1.0))
-                            .with_width(2.0),
+                        Stroke::default().with_color(Color::from_rgb(0.3, 0.7, 1.0)).with_width(2.0),
                     );
                 }
 
@@ -416,9 +405,7 @@ impl<'a> HighlightCanvas<'a> {
                     let highlight = Path::circle(center, hole_radius + 3.0);
                     frame.stroke(
                         &highlight,
-                        Stroke::default()
-                            .with_color(Color::from_rgb(1.0, 0.8, 0.0))
-                            .with_width(3.0),
+                        Stroke::default().with_color(Color::from_rgb(1.0, 0.8, 0.0)).with_width(3.0),
                     );
                 }
 
@@ -427,9 +414,7 @@ impl<'a> HighlightCanvas<'a> {
                     frame.fill(&highlight, Color::from_rgba(0.0, 1.0, 0.0, 0.3));
                     frame.stroke(
                         &highlight,
-                        Stroke::default()
-                            .with_color(Color::from_rgb(0.0, 0.8, 0.0))
-                            .with_width(2.0),
+                        Stroke::default().with_color(Color::from_rgb(0.0, 0.8, 0.0)).with_width(2.0),
                     );
                 }
             }
@@ -481,10 +466,7 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
                 if let SelectionState::PieceSelected(_, jumps) = self.selection {
                     for jump in jumps {
                         if jump.to == pos {
-                            return Some(
-                                Action::publish(BoardMessage::JumpSelected(jump.clone()))
-                                    .and_capture(),
-                            );
+                            return Some(Action::publish(BoardMessage::JumpSelected(jump.clone())).and_capture());
                         }
                     }
                 }
@@ -504,18 +486,14 @@ impl<'a> StoneCanvas<'a> {
             for col in 0..board_size {
                 let pos = Position::new(row, col);
                 let is_animating = self.animations.iter().any(|a| a.position == pos);
-                if !is_animating
-                    && let Some(Cell::Occupied(color)) = self.state.board.get(pos)
-                {
-                    let center =
-                        board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
+                if !is_animating && let Some(Cell::Occupied(color)) = self.state.board.get(pos) {
+                    let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
                     draw_piece(frame, center, piece_radius, color, 1.0);
                 }
             }
         }
         for anim in self.animations {
-            let center =
-                board_to_screen(anim.position, board_size, cell_size, offset_x, offset_y);
+            let center = board_to_screen(anim.position, board_size, cell_size, offset_x, offset_y);
             let progress = anim.progress();
             let alpha = 1.0 - progress;
             let scale = 1.0 - (progress * 0.5);

@@ -92,16 +92,9 @@ impl SetupView {
         // Board size selector
         let board_sizes: Vec<usize> = (4..=16).step_by(2).collect();
         let size_label = text("Board Size:").size(18);
-        let size_picker = pick_list(
-            board_sizes,
-            Some(self.board_size),
-            SetupMessage::BoardSizeSelected,
-        )
-        .width(Length::Fixed(80.0));
+        let size_picker = pick_list(board_sizes, Some(self.board_size), SetupMessage::BoardSizeSelected).width(Length::Fixed(80.0));
 
-        let size_row = row![size_label, size_picker]
-            .spacing(10)
-            .align_y(Alignment::Center);
+        let size_row = row![size_label, size_picker].spacing(10).align_y(Alignment::Center);
 
         // Black player type selector
         let black_player_label = text("Black Player:").size(18);
@@ -188,9 +181,7 @@ impl SetupView {
             .padding(10)
             .width(Length::Fixed(300.0));
 
-        let import_btn = button(text("Import").size(16))
-            .padding(10)
-            .on_press(SetupMessage::ImportGame);
+        let import_btn = button(text("Import").size(16)).padding(10).on_press(SetupMessage::ImportGame);
 
         let cancel_btn = button(text("Cancel").size(16))
             .padding(10)
@@ -203,10 +194,7 @@ impl SetupView {
             modal_content = modal_content.push(text(format!("Error: {}", error)));
         }
 
-        let modal_content = modal_content
-            .push(buttons)
-            .spacing(15)
-            .align_x(Alignment::Center);
+        let modal_content = modal_content.push(buttons).spacing(15).align_x(Alignment::Center);
 
         let popup = container(modal_content)
             .width(Length::Fixed(400.0))

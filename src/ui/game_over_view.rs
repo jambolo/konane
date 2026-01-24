@@ -77,29 +77,21 @@ impl GameOverView {
 
     pub fn view(&self) -> Element<'_, GameOverMessage> {
         let title = text("Game Over!").size(36);
-
         let winner_text = text(format!("{} wins!", self.winner)).size(28);
-
         let moves_text = text(format!("Total moves: {}", self.move_history.len())).size(18);
-
         let download_label = text("Download game log:").size(16);
-
         let text_button = button(text("Text").size(16))
             .padding(10)
             .on_press(GameOverMessage::ShowExportModal(ExportFormat::Text));
-
         let json_button = button(text("JSON").size(16))
             .padding(10)
             .on_press(GameOverMessage::ShowExportModal(ExportFormat::Json));
-
         let download_row = row![download_label, text_button, json_button]
             .spacing(10)
             .align_y(Alignment::Center);
-
         let dismiss_button = button(text("New Game").size(18))
             .padding(15)
             .on_press(GameOverMessage::Dismiss);
-
         let content = column![
             title,
             text("").height(Length::Fixed(20.0)),
@@ -114,10 +106,7 @@ impl GameOverView {
         .align_x(Alignment::Center);
 
         // Popup dialog box
-        let popup = container(content)
-            .width(Length::Fixed(400.0))
-            .padding(30)
-            .style(popup_style);
+        let popup = container(content).width(Length::Fixed(400.0)).padding(30).style(popup_style);
 
         // Semi-transparent backdrop
         let main_view = container(popup)
@@ -166,9 +155,7 @@ impl GameOverView {
 
         let buttons = row![cancel_btn, export_btn].spacing(10);
 
-        let modal_content = column![title, path_input, buttons]
-            .spacing(15)
-            .align_x(Alignment::Center);
+        let modal_content = column![title, path_input, buttons].spacing(15).align_x(Alignment::Center);
 
         let inner_popup = container(modal_content)
             .width(Length::Fixed(400.0))

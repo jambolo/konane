@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::widget::{button, column, container, row, scrollable, stack, text, Space};
+use iced::widget::{Space, button, column, container, row, scrollable, stack, text};
 use iced::{Alignment, Element, Length, Subscription, Task};
 use konane::import;
 
@@ -62,8 +62,10 @@ impl Default for KonaneApp {
 
 impl KonaneApp {
     pub fn new(ai_depth: i32) -> (Self, iced::Task<Message>) {
-        let mut app = Self::default();
-        app.ai_depth = ai_depth;
+        let app = Self {
+            ai_depth,
+            ..Default::default()
+        };
         (app, iced::Task::none())
     }
 
@@ -190,11 +192,7 @@ impl KonaneApp {
         if let Some(ref state) = self.game_state
             && let GamePhase::GameOver { winner } = state.phase
         {
-            self.game_over_view = Some(GameOverView::new(
-                winner,
-                state.move_history.clone(),
-                state.board.size(),
-            ));
+            self.game_over_view = Some(GameOverView::new(winner, state.move_history.clone(), state.board.size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -214,10 +212,7 @@ impl KonaneApp {
                 if valid.contains(&pos) {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
-                    let color = state
-                        .board
-                        .get_piece_color(pos)
-                        .unwrap_or(PieceColor::Black);
+                    let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::Black);
                     let _ = Rules::apply_opening_removal(state, pos);
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
@@ -229,10 +224,7 @@ impl KonaneApp {
                 if valid.contains(&pos) {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
-                    let color = state
-                        .board
-                        .get_piece_color(pos)
-                        .unwrap_or(PieceColor::White);
+                    let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::White);
                     let _ = Rules::apply_opening_removal(state, pos);
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
@@ -243,8 +235,7 @@ impl KonaneApp {
                 let jumps = Rules::valid_jumps_from(state, pos);
                 if !jumps.is_empty() {
                     self.board_view.select_piece(pos, jumps);
-                    self.status_message =
-                        format!("{}'s turn - Select destination", state.current_player);
+                    self.status_message = format!("{}'s turn - Select destination", state.current_player);
                 } else {
                     self.board_view.clear_selection();
                     self.update_status();
@@ -375,25 +366,16 @@ impl KonaneApp {
 
         self.status_message = match state.phase {
             GamePhase::OpeningBlackRemoval => {
-                format!(
-                    "Black{}: Remove a black piece from the center or a corner",
-                    ai_suffix
-                )
+                format!("Black{}: Remove a black piece from the center or a corner", ai_suffix)
             }
             GamePhase::OpeningWhiteRemoval => {
-                format!(
-                    "White{}: Remove a white piece adjacent to the empty space",
-                    ai_suffix
-                )
+                format!("White{}: Remove a white piece adjacent to the empty space", ai_suffix)
             }
             GamePhase::Play => {
                 if self.ai_computing {
                     format!("{}{} is thinking...", state.current_player, ai_suffix)
                 } else {
-                    format!(
-                        "{}{}'s turn - Select a piece to move",
-                        state.current_player, ai_suffix
-                    )
+                    format!("{}{}'s turn - Select a piece to move", state.current_player, ai_suffix)
                 }
             }
             GamePhase::GameOver { winner } => {
@@ -463,10 +445,7 @@ impl KonaneApp {
                 let Some(ref mut state) = self.game_state else {
                     return Task::none();
                 };
-                let color = state
-                    .board
-                    .get_piece_color(pos)
-                    .unwrap_or(state.current_player);
+                let color = state.board.get_piece_color(pos).unwrap_or(state.current_player);
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
                 let _ = Rules::apply_opening_removal(state, pos);
@@ -501,11 +480,7 @@ impl KonaneApp {
         if let Some(ref state) = self.game_state
             && let GamePhase::GameOver { winner } = state.phase
         {
-            self.game_over_view = Some(GameOverView::new(
-                winner,
-                state.move_history.clone(),
-                state.board.size(),
-            ));
+            self.game_over_view = Some(GameOverView::new(winner, state.move_history.clone(), state.board.size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -560,11 +535,7 @@ impl KonaneApp {
         };
 
         // Current player indicator
-        let player_indicator = row![
-            text("Current: ").size(16),
-            text(state.current_player.to_string()).size(16),
-        ]
-        .spacing(5);
+        let player_indicator = row![text("Current: ").size(16), text(state.current_player.to_string()).size(16),].spacing(5);
 
         let info_bar = row![undo_btn, redo_btn, player_indicator]
             .spacing(15)
@@ -579,14 +550,10 @@ impl KonaneApp {
             move_list = move_list.push(text(format!("{}. {}", i + 1, record.to_algebraic())).size(14));
         }
         let move_list_padded = row![move_list, Space::new().width(15.0)];
-        let move_panel = container(
-            scrollable(move_list_padded)
-                .height(Length::Fill)
-                .width(Length::Fill),
-        )
-        .width(Length::Fixed(150.0))
-        .height(Length::Fill)
-        .padding(10);
+        let move_panel = container(scrollable(move_list_padded).height(Length::Fill).width(Length::Fill))
+            .width(Length::Fixed(150.0))
+            .height(Length::Fill)
+            .padding(10);
 
         let board_row = row![board, move_panel].spacing(0);
 
@@ -595,9 +562,6 @@ impl KonaneApp {
             .padding(20)
             .align_x(Alignment::Center);
 
-        container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        container(content).width(Length::Fill).height(Length::Fill).into()
     }
 }

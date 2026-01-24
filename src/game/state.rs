@@ -81,12 +81,7 @@ pub enum Direction {
 
 impl Direction {
     pub fn all() -> [Direction; 4] {
-        [
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ]
+        [Direction::Up, Direction::Down, Direction::Left, Direction::Right]
     }
 
     pub fn apply(&self, pos: Position, board_size: usize) -> Option<Position> {
@@ -98,9 +93,7 @@ impl Direction {
             // Left decreases col
             Direction::Left if pos.col > 0 => Some(Position::new(pos.row, pos.col - 1)),
             // Right increases col
-            Direction::Right if pos.col < board_size - 1 => {
-                Some(Position::new(pos.row, pos.col + 1))
-            }
+            Direction::Right if pos.col < board_size - 1 => Some(Position::new(pos.row, pos.col + 1)),
             _ => None,
         }
     }
@@ -153,9 +146,7 @@ impl std::fmt::Display for MoveRecord {
             MoveRecord::OpeningRemoval { color, position } => {
                 write!(f, "{} removes piece at {}", color, position)
             }
-            MoveRecord::Jump {
-                color, captured, ..
-            } => {
+            MoveRecord::Jump { color, captured, .. } => {
                 write!(
                     f,
                     "{} jumps {} capturing {} piece(s)",
@@ -259,10 +250,7 @@ impl Board {
     }
 
     pub fn orthogonal_neighbors(&self, pos: Position) -> Vec<Position> {
-        Direction::all()
-            .iter()
-            .filter_map(|d| d.apply(pos, self.size))
-            .collect()
+        Direction::all().iter().filter_map(|d| d.apply(pos, self.size)).collect()
     }
 }
 
@@ -362,14 +350,8 @@ mod tests {
 
         #[test]
         fn from_algebraic_handles_double_digit_ranks() {
-            assert_eq!(
-                Position::_from_algebraic("a10"),
-                Some(Position::new(9, 0))
-            );
-            assert_eq!(
-                Position::_from_algebraic("p16"),
-                Some(Position::new(15, 15))
-            );
+            assert_eq!(Position::_from_algebraic("a10"), Some(Position::new(9, 0)));
+            assert_eq!(Position::_from_algebraic("p16"), Some(Position::new(15, 15)));
         }
 
         #[test]
@@ -471,61 +453,31 @@ mod tests {
         #[test]
         fn checkerboard_pattern_a1_is_black() {
             let board = Board::new(8);
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 0)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(board.get_piece_color(Position::new(0, 0)), Some(PieceColor::Black));
         }
 
         #[test]
         fn checkerboard_pattern_alternates() {
             let board = Board::new(8);
             // Black at (0,0), White at (0,1), Black at (0,2)
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 0)),
-                Some(PieceColor::Black)
-            );
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 1)),
-                Some(PieceColor::White)
-            );
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 2)),
-                Some(PieceColor::Black)
-            );
-            assert_eq!(
-                board.get_piece_color(Position::new(1, 0)),
-                Some(PieceColor::White)
-            );
-            assert_eq!(
-                board.get_piece_color(Position::new(1, 1)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(board.get_piece_color(Position::new(0, 0)), Some(PieceColor::Black));
+            assert_eq!(board.get_piece_color(Position::new(0, 1)), Some(PieceColor::White));
+            assert_eq!(board.get_piece_color(Position::new(0, 2)), Some(PieceColor::Black));
+            assert_eq!(board.get_piece_color(Position::new(1, 0)), Some(PieceColor::White));
+            assert_eq!(board.get_piece_color(Position::new(1, 1)), Some(PieceColor::Black));
         }
 
         #[test]
         fn corner_colors_on_8x8() {
             let board = Board::new(8);
             // a1 (0,0) = Black
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 0)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(board.get_piece_color(Position::new(0, 0)), Some(PieceColor::Black));
             // h1 (0,7) = White
-            assert_eq!(
-                board.get_piece_color(Position::new(0, 7)),
-                Some(PieceColor::White)
-            );
+            assert_eq!(board.get_piece_color(Position::new(0, 7)), Some(PieceColor::White));
             // a8 (7,0) = White
-            assert_eq!(
-                board.get_piece_color(Position::new(7, 0)),
-                Some(PieceColor::White)
-            );
+            assert_eq!(board.get_piece_color(Position::new(7, 0)), Some(PieceColor::White));
             // h8 (7,7) = Black
-            assert_eq!(
-                board.get_piece_color(Position::new(7, 7)),
-                Some(PieceColor::Black)
-            );
+            assert_eq!(board.get_piece_color(Position::new(7, 7)), Some(PieceColor::Black));
         }
 
         #[test]

@@ -5,11 +5,8 @@ resolver = "2"
 [package]
 name = "konane"
 version = "1.0.0"
-edition = "2024"
 
-[features]
-default = []
-audio = ["kira"]
+edition = "2024"
 
 [dependencies]
 iced = { version = "0.14", features = ["image", "canvas", "tokio"] }
@@ -18,6 +15,6 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.9"
 ndarray = "0.17"
-kira = { version = "0.11", optional = true }
 game-player = { path = "game-player" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
+clap = { version = "4", features = ["derive"] }

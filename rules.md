@@ -1,5 +1,7 @@
 # Rules and Game Description
 
+Kōnane is a traditional Hawaiian strategy board game. The proper spelling of the name of the game is "Kōnane".
+
 ## Board and Pieces Specification
 
 * **The Board (Papamū):** * A rectangular grid of holes (*lua*).

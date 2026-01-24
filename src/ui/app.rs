@@ -4,7 +4,6 @@ use iced::widget::{button, column, container, row, scrollable, stack, text, Spac
 use iced::{Alignment, Element, Length, Subscription, Task};
 use konane::import;
 
-use crate::audio::GameAudio;
 use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
 use crate::game::{AiPlayer, GamePhase, GameState, PieceColor, Position, Rules};
@@ -34,12 +33,12 @@ pub struct KonaneApp {
     board_view: BoardView,
     game_over_view: Option<GameOverView>,
     status_message: String,
-    audio: GameAudio,
     undo_stack: Vec<GameState>,
     redo_stack: Vec<GameState>,
     black_player_type: PlayerType,
     white_player_type: PlayerType,
     ai_computing: bool,
+    ai_depth: i32,
 }
 
 impl Default for KonaneApp {
@@ -51,19 +50,21 @@ impl Default for KonaneApp {
             board_view: BoardView::default(),
             game_over_view: None,
             status_message: String::new(),
-            audio: GameAudio::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             black_player_type: PlayerType::Human,
             white_player_type: PlayerType::Human,
             ai_computing: false,
+            ai_depth: 8,
         }
     }
 }
 
 impl KonaneApp {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ai_depth: i32) -> (Self, iced::Task<Message>) {
+        let mut app = Self::default();
+        app.ai_depth = ai_depth;
+        (app, iced::Task::none())
     }
 
     pub fn title(&self) -> String {
@@ -219,7 +220,6 @@ impl KonaneApp {
                         .unwrap_or(PieceColor::Black);
                     let _ = Rules::apply_opening_removal(state, pos);
                     self.board_view.animate_removal(pos, color);
-                    self.audio.play_capture();
                     self.board_view.clear_selection();
                     self.update_status();
                 }
@@ -235,7 +235,6 @@ impl KonaneApp {
                         .unwrap_or(PieceColor::White);
                     let _ = Rules::apply_opening_removal(state, pos);
                     self.board_view.animate_removal(pos, color);
-                    self.audio.play_capture();
                     self.board_view.clear_selection();
                     self.update_status();
                 }
@@ -276,12 +275,6 @@ impl KonaneApp {
         // Animate all captured pieces
         for (pos, color) in captured_info {
             self.board_view.animate_removal(pos, color);
-        }
-
-        // Play sounds
-        self.audio.play_move();
-        for _ in 0..jump.captured.len() {
-            self.audio.play_capture();
         }
 
         self.board_view.clear_selection();
@@ -438,7 +431,7 @@ impl KonaneApp {
         }
 
         let state_clone = state.clone();
-        let depth = 15; // AI search depth
+        let depth = self.ai_depth;
 
         self.ai_computing = true;
         self.update_status();
@@ -478,7 +471,6 @@ impl KonaneApp {
                 let state = self.game_state.as_mut().unwrap();
                 let _ = Rules::apply_opening_removal(state, pos);
                 self.board_view.animate_removal(pos, color);
-                self.audio.play_capture();
                 self.board_view.clear_selection();
             }
             PlayerMove::Jump(jump) => {
@@ -497,11 +489,6 @@ impl KonaneApp {
 
                 for (pos, color) in captured_info {
                     self.board_view.animate_removal(pos, color);
-                }
-
-                self.audio.play_move();
-                for _ in 0..jump.captured.len() {
-                    self.audio.play_capture();
                 }
 
                 self.board_view.clear_selection();

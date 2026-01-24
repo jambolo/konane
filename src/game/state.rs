@@ -292,3 +292,394 @@ impl GameState {
         self.board.size()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod piece_color {
+        use super::*;
+
+        #[test]
+        fn opposite_of_black_is_white() {
+            assert_eq!(PieceColor::Black.opposite(), PieceColor::White);
+        }
+
+        #[test]
+        fn opposite_of_white_is_black() {
+            assert_eq!(PieceColor::White.opposite(), PieceColor::Black);
+        }
+
+        #[test]
+        fn display_formats_correctly() {
+            assert_eq!(format!("{}", PieceColor::Black), "Black");
+            assert_eq!(format!("{}", PieceColor::White), "White");
+        }
+    }
+
+    mod position {
+        use super::*;
+
+        #[test]
+        fn new_creates_position() {
+            let pos = Position::new(3, 5);
+            assert_eq!(pos.row, 3);
+            assert_eq!(pos.col, 5);
+        }
+
+        #[test]
+        fn to_algebraic_converts_origin() {
+            assert_eq!(Position::new(0, 0).to_algebraic(), "a1");
+        }
+
+        #[test]
+        fn to_algebraic_converts_various_positions() {
+            assert_eq!(Position::new(0, 4).to_algebraic(), "e1");
+            assert_eq!(Position::new(3, 3).to_algebraic(), "d4");
+            assert_eq!(Position::new(7, 7).to_algebraic(), "h8");
+        }
+
+        #[test]
+        fn from_algebraic_parses_valid_notation() {
+            assert_eq!(Position::_from_algebraic("a1"), Some(Position::new(0, 0)));
+            assert_eq!(Position::_from_algebraic("e4"), Some(Position::new(3, 4)));
+            assert_eq!(Position::_from_algebraic("h8"), Some(Position::new(7, 7)));
+        }
+
+        #[test]
+        fn from_algebraic_handles_uppercase() {
+            assert_eq!(Position::_from_algebraic("A1"), Some(Position::new(0, 0)));
+            assert_eq!(Position::_from_algebraic("E4"), Some(Position::new(3, 4)));
+        }
+
+        #[test]
+        fn from_algebraic_rejects_invalid_input() {
+            assert_eq!(Position::_from_algebraic(""), None);
+            assert_eq!(Position::_from_algebraic("a0"), None);
+            assert_eq!(Position::_from_algebraic("1a"), None);
+            assert_eq!(Position::_from_algebraic("aa"), None);
+        }
+
+        #[test]
+        fn from_algebraic_handles_double_digit_ranks() {
+            assert_eq!(
+                Position::_from_algebraic("a10"),
+                Some(Position::new(9, 0))
+            );
+            assert_eq!(
+                Position::_from_algebraic("p16"),
+                Some(Position::new(15, 15))
+            );
+        }
+
+        #[test]
+        fn display_uses_algebraic() {
+            let pos = Position::new(3, 4);
+            assert_eq!(format!("{}", pos), "e4");
+        }
+
+        #[test]
+        fn roundtrip_conversion() {
+            for row in 0..8 {
+                for col in 0..8 {
+                    let pos = Position::new(row, col);
+                    let algebraic = pos.to_algebraic();
+                    let parsed = Position::_from_algebraic(&algebraic);
+                    assert_eq!(parsed, Some(pos));
+                }
+            }
+        }
+    }
+
+    mod direction {
+        use super::*;
+
+        #[test]
+        fn all_returns_four_directions() {
+            let dirs = Direction::all();
+            assert_eq!(dirs.len(), 4);
+            assert!(dirs.contains(&Direction::Up));
+            assert!(dirs.contains(&Direction::Down));
+            assert!(dirs.contains(&Direction::Left));
+            assert!(dirs.contains(&Direction::Right));
+        }
+
+        #[test]
+        fn apply_up_increases_row() {
+            let pos = Position::new(3, 3);
+            let result = Direction::Up.apply(pos, 8);
+            assert_eq!(result, Some(Position::new(4, 3)));
+        }
+
+        #[test]
+        fn apply_down_decreases_row() {
+            let pos = Position::new(3, 3);
+            let result = Direction::Down.apply(pos, 8);
+            assert_eq!(result, Some(Position::new(2, 3)));
+        }
+
+        #[test]
+        fn apply_left_decreases_col() {
+            let pos = Position::new(3, 3);
+            let result = Direction::Left.apply(pos, 8);
+            assert_eq!(result, Some(Position::new(3, 2)));
+        }
+
+        #[test]
+        fn apply_right_increases_col() {
+            let pos = Position::new(3, 3);
+            let result = Direction::Right.apply(pos, 8);
+            assert_eq!(result, Some(Position::new(3, 4)));
+        }
+
+        #[test]
+        fn apply_returns_none_at_boundaries() {
+            assert_eq!(Direction::Up.apply(Position::new(7, 3), 8), None);
+            assert_eq!(Direction::Down.apply(Position::new(0, 3), 8), None);
+            assert_eq!(Direction::Left.apply(Position::new(3, 0), 8), None);
+            assert_eq!(Direction::Right.apply(Position::new(3, 7), 8), None);
+        }
+    }
+
+    mod board {
+        use super::*;
+
+        #[test]
+        fn new_creates_board_with_correct_size() {
+            let board = Board::new(8);
+            assert_eq!(board.size(), 8);
+        }
+
+        #[test]
+        #[should_panic(expected = "Board size must be even")]
+        fn new_rejects_odd_size() {
+            Board::new(7);
+        }
+
+        #[test]
+        #[should_panic(expected = "Board size must be even")]
+        fn new_rejects_size_too_small() {
+            Board::new(2);
+        }
+
+        #[test]
+        #[should_panic(expected = "Board size must be even")]
+        fn new_rejects_size_too_large() {
+            Board::new(18);
+        }
+
+        #[test]
+        fn checkerboard_pattern_a1_is_black() {
+            let board = Board::new(8);
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 0)),
+                Some(PieceColor::Black)
+            );
+        }
+
+        #[test]
+        fn checkerboard_pattern_alternates() {
+            let board = Board::new(8);
+            // Black at (0,0), White at (0,1), Black at (0,2)
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 0)),
+                Some(PieceColor::Black)
+            );
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 1)),
+                Some(PieceColor::White)
+            );
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 2)),
+                Some(PieceColor::Black)
+            );
+            assert_eq!(
+                board.get_piece_color(Position::new(1, 0)),
+                Some(PieceColor::White)
+            );
+            assert_eq!(
+                board.get_piece_color(Position::new(1, 1)),
+                Some(PieceColor::Black)
+            );
+        }
+
+        #[test]
+        fn corner_colors_on_8x8() {
+            let board = Board::new(8);
+            // a1 (0,0) = Black
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 0)),
+                Some(PieceColor::Black)
+            );
+            // h1 (0,7) = White
+            assert_eq!(
+                board.get_piece_color(Position::new(0, 7)),
+                Some(PieceColor::White)
+            );
+            // a8 (7,0) = White
+            assert_eq!(
+                board.get_piece_color(Position::new(7, 0)),
+                Some(PieceColor::White)
+            );
+            // h8 (7,7) = Black
+            assert_eq!(
+                board.get_piece_color(Position::new(7, 7)),
+                Some(PieceColor::Black)
+            );
+        }
+
+        #[test]
+        fn get_returns_none_for_out_of_bounds() {
+            let board = Board::new(8);
+            assert_eq!(board.get(Position::new(8, 0)), None);
+            assert_eq!(board.get(Position::new(0, 8)), None);
+        }
+
+        #[test]
+        fn set_and_get() {
+            let mut board = Board::new(4);
+            let pos = Position::new(1, 1);
+            board.set(pos, Cell::Empty);
+            assert_eq!(board.get(pos), Some(Cell::Empty));
+        }
+
+        #[test]
+        fn remove_makes_cell_empty() {
+            let mut board = Board::new(4);
+            let pos = Position::new(1, 1);
+            assert!(!board.is_empty(pos));
+            board.remove(pos);
+            assert!(board.is_empty(pos));
+        }
+
+        #[test]
+        fn center_positions_for_4x4() {
+            let board = Board::new(4);
+            let centers = board.center_positions();
+            assert_eq!(centers.len(), 4);
+            assert!(centers.contains(&Position::new(1, 1)));
+            assert!(centers.contains(&Position::new(1, 2)));
+            assert!(centers.contains(&Position::new(2, 1)));
+            assert!(centers.contains(&Position::new(2, 2)));
+        }
+
+        #[test]
+        fn center_positions_for_8x8() {
+            let board = Board::new(8);
+            let centers = board.center_positions();
+            assert_eq!(centers.len(), 4);
+            assert!(centers.contains(&Position::new(3, 3)));
+            assert!(centers.contains(&Position::new(3, 4)));
+            assert!(centers.contains(&Position::new(4, 3)));
+            assert!(centers.contains(&Position::new(4, 4)));
+        }
+
+        #[test]
+        fn corner_positions() {
+            let board = Board::new(8);
+            let corners = board.corner_positions();
+            assert_eq!(corners.len(), 4);
+            assert!(corners.contains(&Position::new(0, 0)));
+            assert!(corners.contains(&Position::new(0, 7)));
+            assert!(corners.contains(&Position::new(7, 0)));
+            assert!(corners.contains(&Position::new(7, 7)));
+        }
+
+        #[test]
+        fn orthogonal_neighbors_in_center() {
+            let board = Board::new(8);
+            let neighbors = board.orthogonal_neighbors(Position::new(3, 3));
+            assert_eq!(neighbors.len(), 4);
+            assert!(neighbors.contains(&Position::new(4, 3))); // Up
+            assert!(neighbors.contains(&Position::new(2, 3))); // Down
+            assert!(neighbors.contains(&Position::new(3, 2))); // Left
+            assert!(neighbors.contains(&Position::new(3, 4))); // Right
+        }
+
+        #[test]
+        fn orthogonal_neighbors_at_corner() {
+            let board = Board::new(8);
+            let neighbors = board.orthogonal_neighbors(Position::new(0, 0));
+            assert_eq!(neighbors.len(), 2);
+            assert!(neighbors.contains(&Position::new(1, 0))); // Up
+            assert!(neighbors.contains(&Position::new(0, 1))); // Right
+        }
+    }
+
+    mod move_record {
+        use super::*;
+
+        #[test]
+        fn opening_removal_to_algebraic() {
+            let record = MoveRecord::OpeningRemoval {
+                color: PieceColor::Black,
+                position: Position::new(3, 4),
+            };
+            assert_eq!(record.to_algebraic(), "e4");
+        }
+
+        #[test]
+        fn jump_to_algebraic() {
+            let record = MoveRecord::Jump {
+                color: PieceColor::White,
+                from: Position::new(0, 0),
+                to: Position::new(0, 2),
+                captured: vec![Position::new(0, 1)],
+            };
+            assert_eq!(record.to_algebraic(), "a1-c1");
+        }
+
+        #[test]
+        fn display_opening_removal() {
+            let record = MoveRecord::OpeningRemoval {
+                color: PieceColor::Black,
+                position: Position::new(3, 4),
+            };
+            let display = format!("{}", record);
+            assert!(display.contains("Black"));
+            assert!(display.contains("e4"));
+        }
+
+        #[test]
+        fn display_jump() {
+            let record = MoveRecord::Jump {
+                color: PieceColor::White,
+                from: Position::new(0, 0),
+                to: Position::new(0, 4),
+                captured: vec![Position::new(0, 1), Position::new(0, 3)],
+            };
+            let display = format!("{}", record);
+            assert!(display.contains("White"));
+            assert!(display.contains("2 piece"));
+        }
+    }
+
+    mod game_state {
+        use super::*;
+
+        #[test]
+        fn new_starts_with_black_opening_removal() {
+            let state = GameState::new(8, PieceColor::Black);
+            assert_eq!(state.phase, GamePhase::OpeningBlackRemoval);
+            assert_eq!(state.current_player, PieceColor::Black);
+        }
+
+        #[test]
+        fn new_has_empty_history() {
+            let state = GameState::new(8, PieceColor::Black);
+            assert!(state.move_history.is_empty());
+        }
+
+        #[test]
+        fn new_has_no_first_removal() {
+            let state = GameState::new(8, PieceColor::Black);
+            assert!(state.first_removal_pos.is_none());
+        }
+
+        #[test]
+        fn board_size_accessor() {
+            let state = GameState::new(6, PieceColor::Black);
+            assert_eq!(state._board_size(), 6);
+        }
+    }
+}

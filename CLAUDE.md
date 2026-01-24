@@ -7,9 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cargo build                    # Debug build
 cargo build --release          # Release build
-cargo build --features audio   # Build with audio support
-cargo run                      # Run the game
-cargo run --features audio     # Run with sound effects
+cargo run                      # Run the game (AI depth: 8)
+cargo run -- --ai-depth 12     # Run with custom AI depth
 cargo test                     # Run all tests
 cargo test <test_name>         # Run specific test
 cargo clippy                   # Lint
@@ -38,7 +37,6 @@ cargo fmt                      # Format code
 - `game/ai.rs`: AI player using minimax search
 - `game-player/`: Submodule providing minimax with alpha-beta pruning and transposition table
 - `ui/`: All iced UI code, decoupled from game logic
-- `audio.rs`: Kira-based sound effects (optional feature)
 
 **Why this separation:**
 
@@ -115,19 +113,13 @@ Uses algebraic notation conventions matching the rules specification:
 - `KonaneEvaluator`: Implements `StaticEvaluator` using mobility heuristic
 - `KonaneMoveGenerator`: Implements `ResponseGenerator` for opening removals and jumps
 - Transposition table with 100k entries for position caching
+- Search depth configurable via `--ai-depth` command-line argument (default: 8)
 
 **UI integration:**
 
 - Setup view allows selecting Human or AI for each player
 - AI moves computed asynchronously via `Task::perform`
 - `ai_computing` flag prevents input during AI turns
-
-### Audio
-
-- Uses Kira audio library for sound effects (optional feature)
-- Move sound: 440Hz click on piece movement
-- Capture sound: 330Hz click on piece removal
-- Sounds generated programmatically as WAV data
 
 ### Animations
 
@@ -165,7 +157,6 @@ Uses algebraic notation conventions matching the rules specification:
 
 - iced 0.14 (canvas, image, tokio features)
 - ndarray for board state
-- kira 0.11 for audio (optional)
 - serde/serde_json for serialization
 - game-player submodule (minimax search)
 - Rust 2024 edition

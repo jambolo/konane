@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::widget::{button, column, container, row, scrollable, stack, text};
+use iced::widget::{button, column, container, row, scrollable, stack, text, Space};
 use iced::{Alignment, Element, Length, Subscription, Task};
 use konane::import;
 
@@ -318,6 +318,7 @@ impl KonaneApp {
             }
             self.game_state = Some(previous_state);
             self.board_view.clear_selection();
+            self.board_view.invalidate_foreground_caches();
             self.update_status();
         }
     }
@@ -329,6 +330,7 @@ impl KonaneApp {
             }
             self.game_state = Some(next_state);
             self.board_view.clear_selection();
+            self.board_view.invalidate_foreground_caches();
             self.update_status();
         }
     }
@@ -419,7 +421,7 @@ impl KonaneApp {
             .spacing(15)
             .align_y(Alignment::Center);
 
-        // Board
+        // Board canvas (labels rendered inside canvas)
         let board = self.board_view.view(state).map(Message::Board);
 
         // Move list
@@ -427,7 +429,7 @@ impl KonaneApp {
         for (i, record) in state.move_history.iter().enumerate() {
             move_list = move_list.push(text(format!("{}. {}", i + 1, record.to_algebraic())).size(14));
         }
-        let move_list_padded = row![move_list, iced::widget::Space::new().width(15.0)];
+        let move_list_padded = row![move_list, Space::new().width(15.0)];
         let move_panel = container(
             scrollable(move_list_padded)
                 .height(Length::Fill)
@@ -437,7 +439,7 @@ impl KonaneApp {
         .height(Length::Fill)
         .padding(10);
 
-        let board_row = row![board, move_panel].spacing(10);
+        let board_row = row![board, move_panel].spacing(0);
 
         let content = column![status, info_bar, board_row]
             .spacing(10)

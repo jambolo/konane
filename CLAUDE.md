@@ -34,7 +34,9 @@ cargo fmt                      # Format code
 
 - `game/state.rs`: Pure data structures (Board, GameState, Position, PieceColor, MoveRecord)
 - `game/rules.rs`: Game logic (move validation, jump calculation, state transitions)
-- `game/player.rs`: Player abstraction trait for future AI/network players
+- `game/player.rs`: Player abstraction trait
+- `game/ai.rs`: AI player using minimax search
+- `game-player/`: Submodule providing minimax with alpha-beta pruning and transposition table
 - `ui/`: All iced UI code, decoupled from game logic
 - `audio.rs`: Kira-based sound effects (optional feature)
 
@@ -97,13 +99,28 @@ Uses algebraic notation conventions matching the rules specification:
 
 ### Player Abstraction
 
-`Player` trait defined but not yet integrated:
+`Player` trait in `game/player.rs`:
 
 - `request_move()` - AI returns computed move, human returns None
 - `receive_input()` - UI sends clicks to human player
 - `is_ready()` - Check if player has pending move
 
-**Current state:** Human input handled directly in UI. Trait ready for AI integration.
+### AI Player
+
+`AiPlayer` in `game/ai.rs` implements the `Player` trait using the `game-player` minimax search.
+
+**Integration with game-player submodule:**
+
+- `KonaneState`: Wrapper implementing `State` trait (fingerprint, whose_turn, is_terminal, apply)
+- `KonaneEvaluator`: Implements `StaticEvaluator` using mobility heuristic
+- `KonaneMoveGenerator`: Implements `ResponseGenerator` for opening removals and jumps
+- Transposition table with 100k entries for position caching
+
+**UI integration:**
+
+- Setup view allows selecting Human or AI for each player
+- AI moves computed asynchronously via `Task::perform`
+- `ai_computing` flag prevents input during AI turns
 
 ### Audio
 
@@ -142,8 +159,7 @@ Uses algebraic notation conventions matching the rules specification:
 
 ### Known Limitations / Future Work
 
-1. **No AI player** - Trait defined, needs minimax/alpha-beta implementation
-2. **No network play** - Would need to serialize moves over socket
+1. **No network play** - Would need to serialize moves over socket
 
 ## Dependencies
 
@@ -151,4 +167,5 @@ Uses algebraic notation conventions matching the rules specification:
 - ndarray for board state
 - kira 0.11 for audio (optional)
 - serde/serde_json for serialization
+- game-player submodule (minimax search)
 - Rust 2024 edition

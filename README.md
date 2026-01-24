@@ -4,6 +4,16 @@
 
 Kōnane is a traditional Hawaiian strategy board game.
 
+## Features
+
+- Configurable board sizes (4x4 to 16x16)
+- Play as Black, White, or random color assignment
+- Human vs Human, Human vs AI, or AI vs AI
+- Undo/Redo support
+- Game import/export (JSON and text formats)
+- Move history with algebraic notation
+- Optional sound effects
+
 ## Game Description
 
 - Played on a rectangular grid (typically square, even-sized).
@@ -33,6 +43,16 @@ Kōnane is a traditional Hawaiian strategy board game.
 
 For full rules and examples, see [rules.md](rules.md).
 
+## Playing
+
+### Setup
+
+From the setup screen, configure:
+
+- **Board size**: 4x4 to 16x16 (even sizes only)
+- **Black player**: Human or AI
+- **White player**: Human or AI
+
 ## JSON Game Format
 
 Games can be exported and imported using JSON. The format:
@@ -56,5 +76,3 @@ Games can be exported and imported using JSON. The format:
 - `moves`: Array of move records
   - `OpeningRemoval`: Initial piece removal with color and position
   - `Jump`: Capturing move with from/to positions and captured piece positions
-
-Import reads from `konane_game.json` in the current directory. Incomplete games can be imported and continued from where they left off.

@@ -36,15 +36,13 @@ After the Opening Phase, all subsequent moves must follow these strict capturing
 * **Direction:** Jumps must be **orthogonal** (Up, Down, Left, Right). No diagonal jumps.
 * **Mechanic:** A player moves their stone over an opponent's stone into an empty lua immediately behind it.
 * **Removal:** The jumped opponent's stone is removed from the board.
-* **Multi-Jumps:** * A player may perform multiple captures in a single turn using the same stone.
-* **Strict Linear Constraint:** During a multi-jump, the player **cannot change direction**. The stone must continue in the same straight line (e.g., if the first jump was "Up," all subsequent jumps in that turn must be "Up").
+* **Multi-Jumps:** * A player may perform multiple captures in a single turn using the same stone. During a multi-jump, the player **cannot change direction**. The stone must continue in the same straight line (e.g., if the first jump was "Up," all subsequent jumps in that turn must be "Up").
 * **Optionality:** Multi-jumps are not mandatory. A player may choose to stop after any capture, even if further captures are possible.
 
 ## Win/Loss Condition
 
 Kōnane uses a "Last Player to Move" victory condition (normal play convention):
 
-* **Legal Move Check:** At the start of a turn, the engine must check if the current player has at least one valid jump.
 * **Termination:** If a player cannot make a legal jump on their turn, the game ends immediately.
 * **Winner:** The player who made the **last successful move** is the winner.
 * **Loser:** The player who is unable to move is the loser.
@@ -74,16 +72,16 @@ Captures are recorded using the **Starting Square**, a **dash**, and the **Endin
 * **Multi-Jump:** Because multi-jumps must continue in a straight line, you only need to record the final destination. If a piece on `c3` jumps three pieces in a row to land on `i3`, it is written as: **`c3-i3`**.
 * **Ambiguity:** Note that the intermediate jumped pieces are implied because the direction must be a straight line.
 
-### 4. Game Log Example ( Board)
+### 4. Game Log Example
 
 A typical game transcript looks like this:
 
-| Turn | Player | Move | Description |
-| --- | --- | --- | --- |
-| 1 | Black | **e4** | Black removes center stone at e4. |
-| 2 | White | **d4** | White removes adjacent stone at d4. |
-| 3 | Black | **f4-d4** | Black jumps over e4 (now empty) to land on d4. |
-| 4 | White | **d3-d5** | White jumps over d4. |
+| Turn | Move |
+| --- | --- |
+| 1 | **e4**    |
+| 2 | **d4**    |
+| 3 | **f4-d4** |
+| 4 | **d3-d5** |
 
 ### 5. **Result Codes:**
 

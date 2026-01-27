@@ -1,30 +1,29 @@
 use serde::Deserialize;
 
 use crate::game::rules::Jump;
-use crate::game::{GamePhase, GameState, MoveRecord, PieceColor, Position, Rules};
+use crate::game::{GamePhase, GameState, MoveHistory, MoveRecord, PieceColor, Position, Rules, UndoRedoStack};
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct ImportedGame {
     pub board_size: usize,
     pub winner: Option<String>,
-    pub moves: Vec<MoveRecord>,
+    pub moves: MoveHistory,
 }
 
 /// Returns (final_state, move_history, undo_stack)
-/// The undo_stack contains (state, move_history_at_that_point) tuples
-pub fn import_game_from_path(path: &str) -> Result<(GameState, Vec<MoveRecord>, Vec<(GameState, Vec<MoveRecord>)>), String> {
+pub fn import_game_from_path(path: &str) -> Result<(GameState, MoveHistory, UndoRedoStack), String> {
     let content = std::fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))?;
     import_game_from_content(&content)
 }
 
-pub fn import_game_from_content(content: &str) -> Result<(GameState, Vec<MoveRecord>, Vec<(GameState, Vec<MoveRecord>)>), String> {
+pub fn import_game_from_content(content: &str) -> Result<(GameState, MoveHistory, UndoRedoStack), String> {
     let imported: ImportedGame = serde_json::from_str(content).map_err(|err| format!("Invalid JSON: {}", err))?;
 
     validate_board_size(imported.board_size)?;
 
     let mut state = GameState::new(imported.board_size, PieceColor::Black);
-    let mut move_history: Vec<MoveRecord> = Vec::new();
+    let mut move_history: MoveHistory = Vec::new();
     let mut undo_stack = Vec::new();
 
     for (index, record) in imported.moves.into_iter().enumerate() {

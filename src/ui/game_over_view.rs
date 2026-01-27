@@ -1,7 +1,7 @@
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
 
-use crate::game::{MoveRecord, PieceColor};
+use crate::game::{MoveHistory, PieceColor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
@@ -20,7 +20,7 @@ pub enum GameOverMessage {
 
 pub struct GameOverView {
     pub winner: PieceColor,
-    pub move_history: Vec<MoveRecord>,
+    pub move_history: MoveHistory,
     pub board_size: usize,
     pub show_export_modal: bool,
     pub export_path: String,
@@ -28,7 +28,7 @@ pub struct GameOverView {
 }
 
 impl GameOverView {
-    pub fn new(winner: PieceColor, move_history: Vec<MoveRecord>, board_size: usize) -> Self {
+    pub fn new(winner: PieceColor, move_history: MoveHistory, board_size: usize) -> Self {
         Self {
             winner,
             move_history,
@@ -62,7 +62,7 @@ impl GameOverView {
             board_size: usize,
             winner: String,
             total_moves: usize,
-            moves: &'a Vec<MoveRecord>,
+            moves: &'a MoveHistory,
         }
 
         let log = GameLog {

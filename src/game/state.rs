@@ -159,6 +159,9 @@ impl std::fmt::Display for MoveRecord {
     }
 }
 
+/// Type alias for move history.
+pub type MoveHistory = Vec<MoveRecord>;
+
 /// Board representation using ndarray.
 /// Coordinate system: (row, col) where (0, 0) is the bottom-left corner.
 /// Row 0 is the bottom row, rows increase upward.
@@ -278,6 +281,9 @@ impl GameState {
         self.board.size()
     }
 }
+
+/// Type for undo/redo stacks storing game state snapshots with their move history.
+pub type UndoRedoStack = Vec<(GameState, MoveHistory)>;
 
 #[cfg(test)]
 mod tests {

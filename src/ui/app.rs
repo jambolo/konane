@@ -6,7 +6,7 @@ use konane::import;
 
 use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
-use crate::game::{AiPlayer, GamePhase, GameState, PieceColor, Position, Rules};
+use crate::game::{AiPlayer, GamePhase, GameState, MoveHistory, PieceColor, Position, Rules, UndoRedoStack};
 use crate::ui::board_view::{BoardMessage, BoardView};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
@@ -33,9 +33,9 @@ pub struct KonaneApp {
     board_view: BoardView,
     game_over_view: Option<GameOverView>,
     status_message: String,
-    move_history: Vec<crate::game::MoveRecord>,
-    undo_stack: Vec<(GameState, Vec<crate::game::MoveRecord>)>,
-    redo_stack: Vec<(GameState, Vec<crate::game::MoveRecord>)>,
+    move_history: MoveHistory,
+    undo_stack: UndoRedoStack,
+    redo_stack: UndoRedoStack,
     black_player_type: PlayerType,
     white_player_type: PlayerType,
     ai_computing: bool,

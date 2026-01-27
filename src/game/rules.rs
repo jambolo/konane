@@ -172,8 +172,8 @@ impl Rules {
         pieces
     }
 
-    // Apply a jump to the game state
-    pub fn apply_jump(state: &mut GameState, jump: &Jump) {
+    // Apply a jump to the game state, returns the move record
+    pub fn apply_jump(state: &mut GameState, jump: &Jump) -> MoveRecord {
         let player = state.current_player;
 
         // Move the piece
@@ -185,14 +185,6 @@ impl Rules {
             state.board.remove(captured_pos);
         }
 
-        // Record the move
-        state.move_history.push(MoveRecord::Jump {
-            color: player,
-            from: jump.from,
-            to: jump.to,
-            captured: jump.captured.clone(),
-        });
-
         // Switch player
         state.current_player = player.opposite();
 
@@ -200,10 +192,17 @@ impl Rules {
         if !Self::has_valid_move(state) {
             state.phase = GamePhase::GameOver { winner: player };
         }
+
+        MoveRecord::Jump {
+            color: player,
+            from: jump.from,
+            to: jump.to,
+            captured: jump.captured.clone(),
+        }
     }
 
-    // Apply opening removal
-    pub fn apply_opening_removal(state: &mut GameState, pos: Position) -> Result<(), &'static str> {
+    // Apply opening removal, returns the move record
+    pub fn apply_opening_removal(state: &mut GameState, pos: Position) -> Result<MoveRecord, &'static str> {
         match state.phase {
             GamePhase::OpeningBlackRemoval => {
                 if !Self::valid_black_opening_removals(state).contains(&pos) {
@@ -211,22 +210,18 @@ impl Rules {
                 }
                 state.board.remove(pos);
                 state.first_removal_pos = Some(pos);
-                state.move_history.push(MoveRecord::OpeningRemoval {
-                    color: PieceColor::Black,
-                    position: pos,
-                });
                 state.phase = GamePhase::OpeningWhiteRemoval;
                 state.current_player = PieceColor::White;
+                Ok(MoveRecord::OpeningRemoval {
+                    color: PieceColor::Black,
+                    position: pos,
+                })
             }
             GamePhase::OpeningWhiteRemoval => {
                 if !Self::valid_white_opening_removals(state).contains(&pos) {
                     return Err("Invalid removal position for White");
                 }
                 state.board.remove(pos);
-                state.move_history.push(MoveRecord::OpeningRemoval {
-                    color: PieceColor::White,
-                    position: pos,
-                });
                 state.phase = GamePhase::Play;
                 state.current_player = PieceColor::Black;
 
@@ -236,10 +231,13 @@ impl Rules {
                         winner: PieceColor::White,
                     };
                 }
+                Ok(MoveRecord::OpeningRemoval {
+                    color: PieceColor::White,
+                    position: pos,
+                })
             }
-            _ => return Err("Not in opening phase"),
+            _ => Err("Not in opening phase"),
         }
-        Ok(())
     }
 }
 
@@ -596,7 +594,7 @@ mod tests {
         }
 
         #[test]
-        fn records_move_in_history() {
+        fn returns_move_record() {
             let mut state = GameState::new(4, PieceColor::Black);
             state.phase = GamePhase::Play;
             state.board.remove(Position::new(0, 2));
@@ -608,19 +606,18 @@ mod tests {
                 captured: vec![Position::new(0, 1)],
             };
 
-            Rules::apply_jump(&mut state, &jump);
+            let record = Rules::apply_jump(&mut state, &jump);
 
-            assert_eq!(state.move_history.len(), 1);
-            match &state.move_history[0] {
+            match record {
                 MoveRecord::Jump {
                     color,
                     from,
                     to,
                     captured,
                 } => {
-                    assert_eq!(*color, PieceColor::Black);
-                    assert_eq!(*from, Position::new(0, 0));
-                    assert_eq!(*to, Position::new(0, 2));
+                    assert_eq!(color, PieceColor::Black);
+                    assert_eq!(from, Position::new(0, 0));
+                    assert_eq!(to, Position::new(0, 2));
                     assert_eq!(captured.len(), 1);
                 }
                 _ => panic!("Expected Jump record"),
@@ -685,15 +682,15 @@ mod tests {
         }
 
         #[test]
-        fn black_removal_records_in_history() {
+        fn black_removal_returns_move_record() {
             let mut state = GameState::new(8, PieceColor::Black);
-            let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
+            let result = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
 
-            assert_eq!(state.move_history.len(), 1);
-            match &state.move_history[0] {
+            assert!(result.is_ok());
+            match result.unwrap() {
                 MoveRecord::OpeningRemoval { color, position } => {
-                    assert_eq!(*color, PieceColor::Black);
-                    assert_eq!(*position, Position::new(3, 3));
+                    assert_eq!(color, PieceColor::Black);
+                    assert_eq!(position, Position::new(3, 3));
                 }
                 _ => panic!("Expected OpeningRemoval"),
             }

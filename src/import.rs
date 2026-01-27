@@ -11,28 +11,32 @@ pub struct ImportedGame {
     pub moves: Vec<MoveRecord>,
 }
 
-pub fn import_game_from_path(path: &str) -> Result<(GameState, Vec<GameState>), String> {
+/// Returns (final_state, move_history, undo_stack)
+/// The undo_stack contains (state, move_history_at_that_point) tuples
+pub fn import_game_from_path(path: &str) -> Result<(GameState, Vec<MoveRecord>, Vec<(GameState, Vec<MoveRecord>)>), String> {
     let content = std::fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))?;
     import_game_from_content(&content)
 }
 
-pub fn import_game_from_content(content: &str) -> Result<(GameState, Vec<GameState>), String> {
+pub fn import_game_from_content(content: &str) -> Result<(GameState, Vec<MoveRecord>, Vec<(GameState, Vec<MoveRecord>)>), String> {
     let imported: ImportedGame = serde_json::from_str(content).map_err(|err| format!("Invalid JSON: {}", err))?;
 
     validate_board_size(imported.board_size)?;
 
     let mut state = GameState::new(imported.board_size, PieceColor::Black);
-    let mut history = Vec::new();
+    let mut move_history: Vec<MoveRecord> = Vec::new();
+    let mut undo_stack = Vec::new();
 
     for (index, record) in imported.moves.into_iter().enumerate() {
         let move_number = index + 1;
-        history.push(state.clone());
-        validate_and_apply_move(&mut state, record, move_number)?;
+        undo_stack.push((state.clone(), move_history.clone()));
+        let move_record = validate_and_apply_move(&mut state, record, move_number)?;
+        move_history.push(move_record);
     }
 
     validate_winner(&state, imported.winner)?;
 
-    Ok((state, history))
+    Ok((state, move_history, undo_stack))
 }
 
 fn validate_board_size(board_size: usize) -> Result<(), String> {
@@ -42,11 +46,11 @@ fn validate_board_size(board_size: usize) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_number: usize) -> Result<(), String> {
+fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_number: usize) -> Result<MoveRecord, String> {
     match record {
         MoveRecord::OpeningRemoval { color, position } => {
             validate_opening_removal(state, color, position, move_number)?;
-            Rules::apply_opening_removal(state, position).map_err(|err| format!("Move {}: {}", move_number, err))?;
+            Rules::apply_opening_removal(state, position).map_err(|err| format!("Move {}: {}", move_number, err))
         }
         MoveRecord::Jump {
             color,
@@ -55,11 +59,9 @@ fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_numbe
             captured,
         } => {
             let jump = validate_jump(state, color, from, to, &captured, move_number)?;
-            Rules::apply_jump(state, &jump);
+            Ok(Rules::apply_jump(state, &jump))
         }
     }
-
-    Ok(())
 }
 
 fn validate_opening_removal(state: &GameState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
@@ -216,9 +218,10 @@ mod tests {
             let result = import_game_from_content(json);
             assert!(result.is_ok());
 
-            let (state, history) = result.unwrap();
+            let (state, move_history, undo_stack) = result.unwrap();
             assert_eq!(state.phase, GamePhase::Play);
-            assert_eq!(history.len(), 2);
+            assert_eq!(move_history.len(), 2);
+            assert_eq!(undo_stack.len(), 2);
         }
 
         #[test]
@@ -508,16 +511,19 @@ mod tests {
             let result = import_game_from_content(json);
             assert!(result.is_ok());
 
-            let (state, history) = result.unwrap();
+            let (state, move_history, undo_stack) = result.unwrap();
 
-            // History should have 2 entries (one before each move)
-            assert_eq!(history.len(), 2);
+            // Move history should have 2 entries
+            assert_eq!(move_history.len(), 2);
 
-            // First history entry is initial state
-            assert_eq!(history[0].phase, GamePhase::OpeningBlackRemoval);
+            // Undo stack should have 2 entries (one before each move)
+            assert_eq!(undo_stack.len(), 2);
 
-            // Second history entry is after black's removal
-            assert_eq!(history[1].phase, GamePhase::OpeningWhiteRemoval);
+            // First undo stack entry is initial state
+            assert_eq!(undo_stack[0].0.phase, GamePhase::OpeningBlackRemoval);
+
+            // Second undo stack entry is after black's removal
+            assert_eq!(undo_stack[1].0.phase, GamePhase::OpeningWhiteRemoval);
 
             // Final state is after both removals
             assert_eq!(state.phase, GamePhase::Play);
@@ -533,9 +539,10 @@ mod tests {
             let result = import_game_from_content(json);
             assert!(result.is_ok());
 
-            let (state, history) = result.unwrap();
+            let (state, move_history, undo_stack) = result.unwrap();
             assert_eq!(state.phase, GamePhase::OpeningBlackRemoval);
-            assert!(history.is_empty());
+            assert!(move_history.is_empty());
+            assert!(undo_stack.is_empty());
         }
     }
 }

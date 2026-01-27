@@ -33,8 +33,9 @@ pub struct KonaneApp {
     board_view: BoardView,
     game_over_view: Option<GameOverView>,
     status_message: String,
-    undo_stack: Vec<GameState>,
-    redo_stack: Vec<GameState>,
+    move_history: Vec<crate::game::MoveRecord>,
+    undo_stack: Vec<(GameState, Vec<crate::game::MoveRecord>)>,
+    redo_stack: Vec<(GameState, Vec<crate::game::MoveRecord>)>,
     black_player_type: PlayerType,
     white_player_type: PlayerType,
     ai_computing: bool,
@@ -50,6 +51,7 @@ impl Default for KonaneApp {
             board_view: BoardView::default(),
             game_over_view: None,
             status_message: String::new(),
+            move_history: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             black_player_type: PlayerType::Human,
@@ -113,6 +115,7 @@ impl KonaneApp {
                 let first_player = self.setup.color_option.to_piece_color();
                 self.game_state = Some(GameState::new(self.setup.board_size, first_player));
                 self.board_view = BoardView::default();
+                self.move_history.clear();
                 self.undo_stack.clear();
                 self.redo_stack.clear();
                 self.black_player_type = self.setup.black_player_type;
@@ -139,10 +142,11 @@ impl KonaneApp {
             SetupMessage::ImportGame => {
                 let path = self.setup.import_path.clone();
                 match import::import_game_from_path(&path) {
-                    Ok((state, history)) => {
+                    Ok((state, move_history, undo_stack)) => {
                         self.game_state = Some(state);
                         self.board_view = BoardView::default();
-                        self.undo_stack = history;
+                        self.move_history = move_history;
+                        self.undo_stack = undo_stack;
                         self.redo_stack.clear();
                         self.view = AppView::Playing;
                         self.update_status();
@@ -192,7 +196,7 @@ impl KonaneApp {
         if let Some(ref state) = self.game_state
             && let GamePhase::GameOver { winner } = state.phase
         {
-            self.game_over_view = Some(GameOverView::new(winner, state.move_history.clone(), state.board.size()));
+            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board.size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -213,7 +217,9 @@ impl KonaneApp {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
                     let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::Black);
-                    let _ = Rules::apply_opening_removal(state, pos);
+                    if let Ok(record) = Rules::apply_opening_removal(state, pos) {
+                        self.move_history.push(record);
+                    }
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
                     self.update_status();
@@ -225,7 +231,9 @@ impl KonaneApp {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
                     let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::White);
-                    let _ = Rules::apply_opening_removal(state, pos);
+                    if let Ok(record) = Rules::apply_opening_removal(state, pos) {
+                        self.move_history.push(record);
+                    }
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
                     self.update_status();
@@ -260,8 +268,9 @@ impl KonaneApp {
         self.save_state_for_undo();
         let state = self.game_state.as_mut().unwrap();
 
-        // Apply the jump
-        Rules::apply_jump(state, &jump);
+        // Apply the jump and record it
+        let record = Rules::apply_jump(state, &jump);
+        self.move_history.push(record);
 
         // Animate all captured pieces
         for (pos, color) in captured_info {
@@ -319,17 +328,18 @@ impl KonaneApp {
 
     fn save_state_for_undo(&mut self) {
         if let Some(ref state) = self.game_state {
-            self.undo_stack.push(state.clone());
+            self.undo_stack.push((state.clone(), self.move_history.clone()));
             self.redo_stack.clear();
         }
     }
 
     fn handle_undo(&mut self) {
-        if let Some(previous_state) = self.undo_stack.pop() {
+        if let Some((previous_state, previous_history)) = self.undo_stack.pop() {
             if let Some(current_state) = self.game_state.take() {
-                self.redo_stack.push(current_state);
+                self.redo_stack.push((current_state, self.move_history.clone()));
             }
             self.game_state = Some(previous_state);
+            self.move_history = previous_history;
             self.board_view.clear_selection();
             self.board_view.invalidate_foreground_caches();
             self.update_status();
@@ -337,11 +347,12 @@ impl KonaneApp {
     }
 
     fn handle_redo(&mut self) {
-        if let Some(next_state) = self.redo_stack.pop() {
+        if let Some((next_state, next_history)) = self.redo_stack.pop() {
             if let Some(current_state) = self.game_state.take() {
-                self.undo_stack.push(current_state);
+                self.undo_stack.push((current_state, self.move_history.clone()));
             }
             self.game_state = Some(next_state);
+            self.move_history = next_history;
             self.board_view.clear_selection();
             self.board_view.invalidate_foreground_caches();
             self.update_status();
@@ -448,7 +459,9 @@ impl KonaneApp {
                 let color = state.board.get_piece_color(pos).unwrap_or(state.current_player);
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
-                let _ = Rules::apply_opening_removal(state, pos);
+                if let Ok(record) = Rules::apply_opening_removal(state, pos) {
+                    self.move_history.push(record);
+                }
                 self.board_view.animate_removal(pos, color);
                 self.board_view.clear_selection();
             }
@@ -464,7 +477,8 @@ impl KonaneApp {
 
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
-                Rules::apply_jump(state, &jump);
+                let record = Rules::apply_jump(state, &jump);
+                self.move_history.push(record);
 
                 for (pos, color) in captured_info {
                     self.board_view.animate_removal(pos, color);
@@ -480,7 +494,7 @@ impl KonaneApp {
         if let Some(ref state) = self.game_state
             && let GamePhase::GameOver { winner } = state.phase
         {
-            self.game_over_view = Some(GameOverView::new(winner, state.move_history.clone(), state.board.size()));
+            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board.size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -546,7 +560,7 @@ impl KonaneApp {
 
         // Move list
         let mut move_list = column![].spacing(4);
-        for (i, record) in state.move_history.iter().enumerate() {
+        for (i, record) in self.move_history.iter().enumerate() {
             move_list = move_list.push(text(format!("{}. {}", i + 1, record.to_algebraic())).size(14));
         }
         let move_list_padded = row![move_list, Space::new().width(15.0)];

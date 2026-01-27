@@ -259,7 +259,6 @@ pub struct GameState {
     pub board: Board,
     pub phase: GamePhase,
     pub current_player: PieceColor,
-    pub move_history: Vec<MoveRecord>,
     pub first_removal_pos: Option<Position>,
 }
 
@@ -271,7 +270,6 @@ impl GameState {
             board: Board::new(board_size),
             phase: GamePhase::OpeningBlackRemoval,
             current_player: PieceColor::Black,
-            move_history: Vec::new(),
             first_removal_pos: None,
         }
     }
@@ -614,12 +612,6 @@ mod tests {
             let state = GameState::new(8, PieceColor::Black);
             assert_eq!(state.phase, GamePhase::OpeningBlackRemoval);
             assert_eq!(state.current_player, PieceColor::Black);
-        }
-
-        #[test]
-        fn new_has_empty_history() {
-            let state = GameState::new(8, PieceColor::Black);
-            assert!(state.move_history.is_empty());
         }
 
         #[test]

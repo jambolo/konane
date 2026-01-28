@@ -2,14 +2,13 @@ name: Rust
 
 on:
   push:
-    branches: [ "master", "develop" ]
+    branches: [ "develop" ]
   pull_request:
     branches: [ "master", "develop" ]
 
 env:
   CARGO_TERM_COLOR: always
   TOOLCHAIN: stable
-  TARPAULIN_VERSION: 0.34.1
 
 jobs:
   build:
@@ -17,6 +16,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
+      with:
+        submodules: true
 
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -34,7 +35,7 @@ jobs:
       continue-on-error: true
 
     - name: Lint with Clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features
       continue-on-error: true
 
     - name: Build

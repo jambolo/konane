@@ -264,7 +264,7 @@ impl<'a> canvas::Program<BoardMessage> for BackgroundCanvas<'a> {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        let board_size = self.state.board.size();
+        let board_size = self.state.board().size();
         let (cell_size, offset_x, offset_y) = compute_board_layout(board_size, bounds);
 
         vec![self.cache.draw(renderer, bounds.size(), |frame| {
@@ -348,7 +348,7 @@ impl<'a> canvas::Program<BoardMessage> for HighlightCanvas<'a> {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        let board_size = self.state.board.size();
+        let board_size = self.state.board().size();
         let (cell_size, offset_x, offset_y) = compute_board_layout(board_size, bounds);
 
         vec![self.cache.draw(renderer, bounds.size(), |frame| {
@@ -360,13 +360,13 @@ impl<'a> canvas::Program<BoardMessage> for HighlightCanvas<'a> {
 impl<'a> HighlightCanvas<'a> {
     fn draw_highlights(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
         let hole_radius = cell_size * 0.44;
-        let valid_removals = match self.state.phase {
+        let valid_removals = match self.state.current_phase() {
             GamePhase::OpeningBlackRemoval => Rules::valid_black_opening_removals(self.state),
             GamePhase::OpeningWhiteRemoval => Rules::valid_white_opening_removals(self.state),
             _ => Vec::new(),
         };
 
-        let movable_pieces = if matches!(self.state.phase, GamePhase::Play) {
+        let movable_pieces = if matches!(self.state.current_phase(), GamePhase::Play) {
             Rules::movable_pieces(self.state)
         } else {
             Vec::new()
@@ -434,7 +434,7 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        let board_size = self.state.board.size();
+        let board_size = self.state.board().size();
         let (cell_size, offset_x, offset_y) = compute_board_layout(board_size, bounds);
 
         vec![self.cache.draw(renderer, bounds.size(), |frame| {
@@ -452,7 +452,7 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
         if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event
             && let Some(cursor_position) = cursor.position_in(bounds)
         {
-            let board_size = self.state.board.size();
+            let board_size = self.state.board().size();
             let (cell_size, offset_x, offset_y) = compute_board_layout(board_size, bounds);
 
             if let Some(pos) = screen_to_board(
@@ -486,7 +486,7 @@ impl<'a> StoneCanvas<'a> {
             for col in 0..board_size {
                 let pos = Position::new(row, col);
                 let is_animating = self.animations.iter().any(|a| a.position == pos);
-                if !is_animating && let Some(Cell::Occupied(color)) = self.state.board.get(pos) {
+                if !is_animating && let Some(Cell::Occupied(color)) = self.state.board().get(pos) {
                     let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
                     draw_piece(frame, center, piece_radius, color, 1.0);
                 }

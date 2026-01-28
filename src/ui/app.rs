@@ -194,9 +194,9 @@ impl KonaneApp {
 
         // Check for game over
         if let Some(ref state) = self.game_state
-            && let GamePhase::GameOver { winner } = state.phase
+            && let GamePhase::GameOver { winner } = state.current_phase()
         {
-            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board.size()));
+            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board().size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -210,13 +210,13 @@ impl KonaneApp {
             return;
         };
 
-        match state.phase {
+        match state.current_phase() {
             GamePhase::OpeningBlackRemoval => {
                 let valid = Rules::valid_black_opening_removals(state);
                 if valid.contains(&pos) {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
-                    let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::Black);
+                    let color = state.board().get_piece_color(pos).unwrap_or(PieceColor::Black);
                     if let Ok(record) = Rules::apply_opening_removal(state, pos) {
                         self.move_history.push(record);
                     }
@@ -230,7 +230,7 @@ impl KonaneApp {
                 if valid.contains(&pos) {
                     self.save_state_for_undo();
                     let state = self.game_state.as_mut().unwrap();
-                    let color = state.board.get_piece_color(pos).unwrap_or(PieceColor::White);
+                    let color = state.board().get_piece_color(pos).unwrap_or(PieceColor::White);
                     if let Ok(record) = Rules::apply_opening_removal(state, pos) {
                         self.move_history.push(record);
                     }
@@ -243,7 +243,7 @@ impl KonaneApp {
                 let jumps = Rules::valid_jumps_from(state, pos);
                 if !jumps.is_empty() {
                     self.board_view.select_piece(pos, jumps);
-                    self.status_message = format!("{}'s turn - Select destination", state.current_player);
+                    self.status_message = format!("{}'s turn - Select destination", state.current_player());
                 } else {
                     self.board_view.clear_selection();
                     self.update_status();
@@ -262,7 +262,7 @@ impl KonaneApp {
         let captured_info: Vec<(Position, PieceColor)> = jump
             .captured
             .iter()
-            .filter_map(|&pos| state.board.get_piece_color(pos).map(|color| (pos, color)))
+            .filter_map(|&pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
             .collect();
 
         self.save_state_for_undo();
@@ -375,7 +375,7 @@ impl KonaneApp {
         let is_ai = self.is_current_player_ai();
         let ai_suffix = if is_ai { " (AI)" } else { "" };
 
-        self.status_message = match state.phase {
+        self.status_message = match state.current_phase() {
             GamePhase::OpeningBlackRemoval => {
                 format!("Black{}: Remove a black piece from the center or a corner", ai_suffix)
             }
@@ -384,9 +384,9 @@ impl KonaneApp {
             }
             GamePhase::Play => {
                 if self.ai_computing {
-                    format!("{}{} is thinking...", state.current_player, ai_suffix)
+                    format!("{}{} is thinking...", state.current_player(), ai_suffix)
                 } else {
-                    format!("{}{}'s turn - Select a piece to move", state.current_player, ai_suffix)
+                    format!("{}{}'s turn - Select a piece to move", state.current_player(), ai_suffix)
                 }
             }
             GamePhase::GameOver { winner } => {
@@ -400,7 +400,7 @@ impl KonaneApp {
         let Some(ref state) = self.game_state else {
             return false;
         };
-        match state.current_player {
+        match state.current_player() {
             PieceColor::Black => self.black_player_type == PlayerType::Ai,
             PieceColor::White => self.white_player_type == PlayerType::Ai,
         }
@@ -415,7 +415,7 @@ impl KonaneApp {
             return Task::none();
         };
 
-        if matches!(state.phase, GamePhase::GameOver { .. }) {
+        if matches!(state.current_phase(), GamePhase::GameOver { .. }) {
             return Task::none();
         }
 
@@ -432,7 +432,7 @@ impl KonaneApp {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
-                    let mut ai = AiPlayer::new(state_clone.current_player, depth);
+                    let mut ai = AiPlayer::new(state_clone.current_player(), depth);
                     ai.request_move(&state_clone)
                 })
                 .await
@@ -456,7 +456,7 @@ impl KonaneApp {
                 let Some(ref mut state) = self.game_state else {
                     return Task::none();
                 };
-                let color = state.board.get_piece_color(pos).unwrap_or(state.current_player);
+                let color = state.board().get_piece_color(pos).unwrap_or(state.current_player());
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
                 if let Ok(record) = Rules::apply_opening_removal(state, pos) {
@@ -472,7 +472,7 @@ impl KonaneApp {
                 let captured_info: Vec<(Position, PieceColor)> = jump
                     .captured
                     .iter()
-                    .filter_map(|&pos| state.board.get_piece_color(pos).map(|color| (pos, color)))
+                    .filter_map(|&pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
                     .collect();
 
                 self.save_state_for_undo();
@@ -492,9 +492,9 @@ impl KonaneApp {
 
         // Check for game over
         if let Some(ref state) = self.game_state
-            && let GamePhase::GameOver { winner } = state.phase
+            && let GamePhase::GameOver { winner } = state.current_phase()
         {
-            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board.size()));
+            self.game_over_view = Some(GameOverView::new(winner, self.move_history.clone(), state.board().size()));
             self.view = AppView::GameOver;
             return Task::none();
         }
@@ -549,7 +549,7 @@ impl KonaneApp {
         };
 
         // Current player indicator
-        let player_indicator = row![text("Current: ").size(16), text(state.current_player.to_string()).size(16),].spacing(5);
+        let player_indicator = row![text("Current: ").size(16), text(state.current_player().to_string()).size(16),].spacing(5);
 
         let info_bar = row![undo_btn, redo_btn, player_indicator]
             .spacing(15)

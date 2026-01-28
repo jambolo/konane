@@ -64,17 +64,17 @@ fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_numbe
 }
 
 fn validate_opening_removal(state: &GameState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
-    if !matches!(state.phase, GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval) {
+    if !matches!(state.current_phase(), GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval) {
         return Err(format!(
             "Move {}: Opening removal not allowed during {:?}",
-            move_number, state.phase
+            move_number, state.current_phase()
         ));
     }
 
-    if color != state.current_player {
+    if color != state.current_player() {
         return Err(format!(
             "Move {}: Expected {} to move, got {}",
-            move_number, state.current_player, color
+            move_number, state.current_player(), color
         ));
     }
 
@@ -91,14 +91,18 @@ fn validate_jump(
     captured: &[Position],
     move_number: usize,
 ) -> Result<Jump, String> {
-    if !matches!(state.phase, GamePhase::Play) {
-        return Err(format!("Move {}: Jump not allowed during {:?}", move_number, state.phase));
+    if !matches!(state.current_phase(), GamePhase::Play) {
+        return Err(format!(
+            "Move {}: Jump not allowed during {:?}",
+            move_number,
+            state.current_phase()
+        ));
     }
 
-    if color != state.current_player {
+    if color != state.current_player() {
         return Err(format!(
             "Move {}: Expected {} to move, got {}",
-            move_number, state.current_player, color
+            move_number, state.current_player(), color
         ));
     }
 
@@ -126,7 +130,7 @@ fn validate_jump(
 }
 
 fn validate_position_in_bounds(state: &GameState, position: Position, move_number: usize, label: &str) -> Result<(), String> {
-    let size = state.board.size();
+    let size = state.board().size();
     if position.row >= size || position.col >= size {
         return Err(format!("Move {}: {} {} is out of bounds", move_number, label, position));
     }
@@ -140,7 +144,7 @@ fn validate_winner(state: &GameState, winner: Option<String>) -> Result<(), Stri
 
     let winner_color = parse_winner_color(&winner)?;
 
-    match state.phase {
+    match state.current_phase() {
         GamePhase::GameOver { winner: actual } => {
             if actual != winner_color {
                 return Err(format!("Winner mismatch: expected {}, got {}", winner_color, actual));
@@ -218,7 +222,7 @@ mod tests {
             assert!(result.is_ok());
 
             let (state, move_history, undo_stack) = result.unwrap();
-            assert_eq!(state.phase, GamePhase::Play);
+            assert_eq!(state.current_phase(), GamePhase::Play);
             assert_eq!(move_history.len(), 2);
             assert_eq!(undo_stack.len(), 2);
         }
@@ -519,13 +523,13 @@ mod tests {
             assert_eq!(undo_stack.len(), 2);
 
             // First undo stack entry is initial state
-            assert_eq!(undo_stack[0].0.phase, GamePhase::OpeningBlackRemoval);
+            assert_eq!(undo_stack[0].0.current_phase(), GamePhase::OpeningBlackRemoval);
 
             // Second undo stack entry is after black's removal
-            assert_eq!(undo_stack[1].0.phase, GamePhase::OpeningWhiteRemoval);
+            assert_eq!(undo_stack[1].0.current_phase(), GamePhase::OpeningWhiteRemoval);
 
             // Final state is after both removals
-            assert_eq!(state.phase, GamePhase::Play);
+            assert_eq!(state.current_phase(), GamePhase::Play);
         }
 
         #[test]
@@ -539,7 +543,7 @@ mod tests {
             assert!(result.is_ok());
 
             let (state, move_history, undo_stack) = result.unwrap();
-            assert_eq!(state.phase, GamePhase::OpeningBlackRemoval);
+            assert_eq!(state.current_phase(), GamePhase::OpeningBlackRemoval);
             assert!(move_history.is_empty());
             assert!(undo_stack.is_empty());
         }

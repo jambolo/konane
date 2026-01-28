@@ -1,6 +1,8 @@
 use ndarray::Array2;
 use serde::{Deserialize, Serialize};
 
+use crate::game::zhash::{Z, ZHash};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PieceColor {
     Black,
@@ -105,7 +107,7 @@ pub enum Cell {
     Occupied(PieceColor),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GamePhase {
     Setup,
     OpeningBlackRemoval,
@@ -162,10 +164,7 @@ impl std::fmt::Display for MoveRecord {
 /// Type alias for move history.
 pub type MoveHistory = Vec<MoveRecord>;
 
-/// Board representation using ndarray.
 /// Coordinate system: (row, col) where (0, 0) is the bottom-left corner.
-/// Row 0 is the bottom row, rows increase upward.
-/// Col 0 is the leftmost column, cols increase to the right.
 #[derive(Debug, Clone)]
 pub struct Board {
     size: usize,
@@ -212,7 +211,7 @@ impl Board {
         }
     }
 
-    pub fn remove(&mut self, pos: Position) {
+    pub fn remove_stone(&mut self, pos: Position) {
         self.set(pos, Cell::Empty);
     }
 
@@ -259,26 +258,92 @@ impl Board {
 
 #[derive(Debug, Clone)]
 pub struct GameState {
-    pub board: Board,
-    pub phase: GamePhase,
-    pub current_player: PieceColor,
-    pub first_removal_pos: Option<Position>,
+    board: Board,
+    phase: GamePhase,
+    current_player: PieceColor,
+    opening_position: Option<Position>,
+    fingerprint: ZHash,
 }
 
 impl GameState {
     pub fn new(board_size: usize, _first_player: PieceColor) -> Self {
         // Note: first_player is recorded for future use (e.g., tracking which human is which color)
         // The game always starts with Black making the first opening removal per Kōnane rules
+        let board = Board::new(board_size);
+        let phase = GamePhase::OpeningBlackRemoval;
+        let current_player = PieceColor::Black;
+        let fingerprint = ZHash::from_state(&board, &phase, current_player);
         Self {
-            board: Board::new(board_size),
-            phase: GamePhase::OpeningBlackRemoval,
-            current_player: PieceColor::Black,
-            first_removal_pos: None,
+            board,
+            phase,
+            current_player,
+            opening_position: None,
+            fingerprint,
         }
     }
 
-    pub fn _board_size(&self) -> usize {
-        self.board.size()
+    /// Returns a reference to the board
+    pub fn board(&self) -> &Board {
+        &self.board
+    }
+
+    /// Returns the current player
+    pub fn current_player(&self) -> PieceColor {
+        self.current_player
+    }
+
+    /// Returns the current phase
+    pub fn current_phase(&self) -> GamePhase {
+        self.phase
+    }
+
+    /// Returns the opening removal position if it exists.
+    pub fn get_opening_position(&self) -> Option<Position> {
+        self.opening_position
+    }
+
+    pub fn fingerprint(&self) -> Z {
+        self.fingerprint.value()
+    }
+
+    /// Sets the current player
+    pub fn set_current_player(&mut self, player: PieceColor) {
+        if player != self.current_player {
+            self.fingerprint.end_turn();
+        }
+        self.current_player = player;
+    }
+
+    /// Removes a stone from the board and updates the fingerprint.
+    pub fn remove_opening_stone(&mut self, pos: Position) {
+        self.board.remove_stone(pos);
+        self.opening_position = Some(pos);
+        self.fingerprint.remove_stone(pos);
+    }
+
+    /// Moves a stone on the board and updates the fingerprint.
+    pub fn move_stone(&mut self, from: Position, to: Position) {
+        self.board.remove_stone(from);
+        self.board.set(to, Cell::Occupied(self.current_player));
+        self.fingerprint.move_stone(from, to);
+    }
+
+    /// Removes a stone from the board and updates the fingerprint.
+    pub fn remove_stone(&mut self, pos: Position) {
+        self.board.remove_stone(pos);
+        self.fingerprint.remove_stone(pos);
+    }
+
+    /// Changes the game phase and updates the fingerprint.
+    pub fn change_phase(&mut self, new_phase: GamePhase) {
+        self.fingerprint.change_phase(&self.phase, &new_phase);
+        self.phase = new_phase;
+    }
+
+    /// Toggles the current player and updates the fingerprint.
+    pub fn end_turn(&mut self) {
+        self.current_player = self.current_player.opposite();
+        self.fingerprint.end_turn();
     }
 }
 
@@ -504,7 +569,7 @@ mod tests {
             let mut board = Board::new(4);
             let pos = Position::new(1, 1);
             assert!(!board.is_empty(pos));
-            board.remove(pos);
+            board.remove_stone(pos);
             assert!(board.is_empty(pos));
         }
 
@@ -616,20 +681,14 @@ mod tests {
         #[test]
         fn new_starts_with_black_opening_removal() {
             let state = GameState::new(8, PieceColor::Black);
-            assert_eq!(state.phase, GamePhase::OpeningBlackRemoval);
-            assert_eq!(state.current_player, PieceColor::Black);
+            assert_eq!(state.current_phase(), GamePhase::OpeningBlackRemoval);
+            assert_eq!(state.current_player(), PieceColor::Black);
         }
 
         #[test]
         fn new_has_no_first_removal() {
             let state = GameState::new(8, PieceColor::Black);
-            assert!(state.first_removal_pos.is_none());
-        }
-
-        #[test]
-        fn board_size_accessor() {
-            let state = GameState::new(6, PieceColor::Black);
-            assert_eq!(state._board_size(), 6);
+            assert!(state.opening_position.is_none());
         }
     }
 }

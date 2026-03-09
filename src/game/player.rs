@@ -9,15 +9,13 @@ pub enum PlayerMove {
     Jump(Jump),
 }
 
-// Trait for player implementations
-// This allows for different player types (human, AI, network, etc.)
+// Trait for player implementations This allows for different player types (human, AI, network, etc.)
 #[allow(dead_code)]
 pub trait Player {
     fn color(&self) -> PieceColor;
 
-    // Called when it's this player's turn
-    // Human players return None and wait for UI input
-    // AI players could compute and return a move directly
+    // Called when it's this player's turn Human players return None and wait for UI input AI players could compute and return a
+    // move directly
     fn request_move(&mut self, state: &GameState) -> Option<PlayerMove>;
 
     // For human players, this is called when the UI receives input

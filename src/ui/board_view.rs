@@ -153,9 +153,8 @@ impl BoardView {
         self.highlight_cache.clear();
     }
     pub fn view<'a>(&'a self, state: &'a GameState) -> Element<'a, BoardMessage> {
-        // Use Stack to layer canvases - iced's canvas batches primitives by type,
-        // so images always render on top of paths within the same Frame.
-        // Separate Canvas widgets in a Stack give true z-ordering.
+        // Use Stack to layer canvases - iced's canvas batches primitives by type, so images always render on top of paths within
+        // the same Frame. Separate Canvas widgets in a Stack give true z-ordering.
         let background = Canvas::new(BackgroundCanvas {
             state,
             cache: &self.background_cache,
@@ -222,8 +221,7 @@ fn compute_board_layout(board_size: usize, bounds: Rectangle) -> (f32, f32, f32)
     (cell_size, offset_x, offset_y)
 }
 
-/// Convert board position to screen coordinates
-/// Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP
+/// Convert board position to screen coordinates Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP
 fn board_to_screen(pos: Position, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32) -> Point {
     let screen_row = (board_size - 1) - pos.row;
     Point::new(

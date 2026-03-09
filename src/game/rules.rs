@@ -14,13 +14,23 @@ pub struct Rules;
 impl Rules {
     // Opening phase: Black's valid removal positions (centers and corners with black pieces)
     pub fn valid_black_opening_removals(state: &GameState) -> Vec<Position> {
-        // Center positions -- black's center positions are always (N/2-1, N/2-1) and (N/2, N/2)
-        // Corner positions -- black's corner positions are always (0, 0) and (N-1, N-1)
+        // * Center positions -- black's center positions are always (N/2-1, N/2-1) and (N/2, N/2)
+        // * Corner positions -- black's corner positions are always (0, 0) and (N-1, N-1)
         let board_size = state.board().size();
-        vec![Position { row: board_size / 2 - 1, col: board_size / 2 - 1 },
-             Position { row: board_size / 2, col: board_size / 2 },
-             Position { row: 0, col: 0 },
-             Position { row: board_size - 1, col: board_size - 1 }
+        vec![
+            Position {
+                row: board_size / 2 - 1,
+                col: board_size / 2 - 1,
+            },
+            Position {
+                row: board_size / 2,
+                col: board_size / 2,
+            },
+            Position { row: 0, col: 0 },
+            Position {
+                row: board_size - 1,
+                col: board_size - 1,
+            },
         ]
     }
 
@@ -92,8 +102,7 @@ impl Rules {
                 test_board.set(to, Cell::Occupied(player));
 
                 loop {
-                    // For multi-jump, we need to check from current_to
-                    // First reset the test board state for checking
+                    // For multi-jump, we need to check from current_to First reset the test board state for checking
                     test_board.set(current_to, Cell::Empty);
 
                     if let Some((next_captured, next_to)) = Self::is_valid_single_jump(&test_board, current_to, direction, player) {
@@ -216,7 +225,9 @@ impl Rules {
 
                 // Check if Black can move
                 if !Self::has_valid_move(state) {
-                    state.change_phase(GamePhase::GameOver { winner: PieceColor::White });
+                    state.change_phase(GamePhase::GameOver {
+                        winner: PieceColor::White,
+                    });
                 }
                 Ok(MoveRecord::OpeningRemoval {
                     color: PieceColor::White,
@@ -285,10 +296,10 @@ mod tests {
             let valid = Rules::valid_white_opening_removals(&state);
 
             // Adjacent white pieces: d3 (2,3), d5 (4,3), c4 (3,2), e4 (3,4)
-            // d3 (2,3): sum=5, odd -> White
-            // d5 (4,3): sum=7, odd -> White
-            // c4 (3,2): sum=5, odd -> White
-            // e4 (3,4): sum=7, odd -> White
+            // * d3 (2,3): sum=5, odd -> White
+            // * d5 (4,3): sum=7, odd -> White
+            // * c4 (3,2): sum=5, odd -> White
+            // * e4 (3,4): sum=7, odd -> White
             assert!(valid.contains(&Position::new(2, 3)));
             assert!(valid.contains(&Position::new(4, 3)));
             assert!(valid.contains(&Position::new(3, 2)));
@@ -326,47 +337,33 @@ mod tests {
         #[test]
         fn finds_single_jump() {
             let _state = setup_play_phase();
-            // Black at (3,5) can jump over white at (3,4)? No, (3,4) is now empty.
-            // We need a setup where a jump is possible.
-            // Black at e4 (3,4) is empty, d4 (3,3) is empty
-            // Let's check if black at (3,2) can jump
-            // (3,2) is black, (3,3) is empty - no jump possible there
-            // We need to find a position where black can jump over white into empty
+            // Black at (3,5) can jump over white at (3,4)? No, (3,4) is now empty. We need a setup where a jump is possible. Black
+            // at e4 (3,4) is empty, d4 (3,3) is empty Let's check if black at (3,2) can jump (3,2) is black, (3,3) is empty - no
+            // jump possible there We need to find a position where black can jump over white into empty
 
-            // After removal of d4 and e4:
-            // Black at c4 (3,2) - can it jump?
-            // Right: (3,3) is empty, no opponent to jump
-            // Let's check black at b4 (3,1) which is white...
-            // Black at f4 (3,5) can jump left over e4 (3,4)? e4 is empty, not a valid jump
+            // After removal of d4 and e4: Black at c4 (3,2) - can it jump? Right: (3,3) is empty, no opponent to jump Let's check
+            // black at b4 (3,1) which is white... Black at f4 (3,5) can jump left over e4 (3,4)? e4 is empty, not a valid jump
 
-            // Actually, black pieces that might jump after removing d4 (black) and e4 (white):
-            // Black at f4 (3,5): look left - e4 (3,4) is empty - no jump
-            // Black at b4 (3,1)? That's white (sum=4, even - no, it's black!)
-            // Wait, (3,1) has sum=4, which is even, so it's black.
-            // Black at b4 (3,1) looking right: c4 (3,2) is black, not opponent
+            // Actually, black pieces that might jump after removing d4 (black) and e4 (white): Black at f4 (3,5): look left - e4
+            // (3,4) is empty - no jump Black at b4 (3,1)? That's white (sum=4, even - no, it's black!) Wait, (3,1) has sum=4, which
+            // is even, so it's black. Black at b4 (3,1) looking right: c4 (3,2) is black, not opponent
 
-            // Let me think more carefully. After opening:
-            // d4 (3,3) is empty (was black)
-            // e4 (3,4) is empty (was white)
-            // Black at c4 (3,2) can jump right over d4? No, d4 is empty
-            // Black at f4 (3,5) can jump left over e4? No, e4 is empty
+            // Let me think more carefully. After opening: d4 (3,3) is empty (was black) e4 (3,4) is empty (was white) Black at c4
+            // (3,2) can jump right over d4? No, d4 is empty Black at f4 (3,5) can jump left over e4? No, e4 is empty
 
             // We need to set up a specific scenario
             let mut state = GameState::new(4, PieceColor::Black);
             let _ = Rules::apply_opening_removal(&mut state, Position::new(1, 1)); // b2
             let _ = Rules::apply_opening_removal(&mut state, Position::new(1, 2)); // c2
 
-            // Now: b2 empty, c2 empty
-            // Black at a2 (1,0) can jump right over b2? b2 is empty - no
-            // Black at d2 (1,3) can jump left over c2? c2 is empty - no
+            // Now: b2 empty, c2 empty Black at a2 (1,0) can jump right over b2? b2 is empty - no Black at d2 (1,3) can jump left
+            // over c2? c2 is empty - no
 
-            // We need opponent between piece and empty
-            // Let's manually set up the board
+            // We need opponent between piece and empty Let's manually set up the board
             let mut state = GameState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
-            // Black at a1 (0,0), White at b1 (0,1), Empty at c1 (0,2)
-            // Black can jump from a1 over b1 to c1
+            // Black at a1 (0,0), White at b1 (0,1), Empty at c1 (0,2) Black can jump from a1 over b1 to c1
 
             let jumps = Rules::valid_jumps_from(&state, Position::new(0, 0));
             assert_eq!(jumps.len(), 1);
@@ -381,11 +378,11 @@ mod tests {
             state.change_phase(GamePhase::Play);
 
             // Set up: Black at a1, White at b1, Empty at c1, White at d1, Empty at e1
-            // a1 (0,0) = Black
-            // b1 (0,1) = White
-            // c1 (0,2) = empty
-            // d1 (0,3) = White
-            // e1 (0,4) = empty
+            // * a1 (0,0) = Black
+            // * b1 (0,1) = White
+            // * c1 (0,2) = empty
+            // * d1 (0,3) = White
+            // * e1 (0,4) = empty
             state.remove_stone(Position::new(0, 2)); // c1 empty
             state.remove_stone(Position::new(0, 4)); // e1 empty
 
@@ -409,8 +406,8 @@ mod tests {
             state.change_phase(GamePhase::Play);
 
             // Black at c3 (2,2), can jump right and also up
-            // Right: d3 (2,3) white, e3 (2,4) empty
-            // Up: c4 (3,2) white, c5 (4,2) empty
+            // * Right: d3 (2,3) white, e3 (2,4) empty
+            // * Up: c4 (3,2) white, c5 (4,2) empty
             state.remove_stone(Position::new(2, 4)); // e3 empty
             state.remove_stone(Position::new(4, 2)); // c5 empty
 
@@ -438,8 +435,7 @@ mod tests {
 
             let all = Rules::all_valid_jumps(&state);
 
-            // Black at a1 can jump to c1, Black at a3 (2,0)? a3 is now empty
-            // Black at c3 (2,2) can jump to a3
+            // Black at a1 can jump to c1, Black at a3 (2,0)? a3 is now empty Black at c3 (2,2) can jump to a3
             assert!(all.len() >= 2);
         }
     }

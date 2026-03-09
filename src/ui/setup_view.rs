@@ -1,6 +1,5 @@
 use iced::widget::{button, column, container, pick_list, radio, row, text, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
-use rand::Rng;
 
 use crate::game::PieceColor;
 
@@ -49,7 +48,7 @@ impl ColorOption {
             ColorOption::Black => PieceColor::Black,
             ColorOption::White => PieceColor::White,
             ColorOption::Random => {
-                if rand::rng().random_bool(0.5) {
+                if rand::random() {
                     PieceColor::Black
                 } else {
                     PieceColor::White

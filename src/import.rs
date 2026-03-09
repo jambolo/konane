@@ -64,17 +64,23 @@ fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_numbe
 }
 
 fn validate_opening_removal(state: &GameState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
-    if !matches!(state.current_phase(), GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval) {
+    if !matches!(
+        state.current_phase(),
+        GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval
+    ) {
         return Err(format!(
             "Move {}: Opening removal not allowed during {:?}",
-            move_number, state.current_phase()
+            move_number,
+            state.current_phase()
         ));
     }
 
     if color != state.current_player() {
         return Err(format!(
             "Move {}: Expected {} to move, got {}",
-            move_number, state.current_player(), color
+            move_number,
+            state.current_player(),
+            color
         ));
     }
 
@@ -102,7 +108,9 @@ fn validate_jump(
     if color != state.current_player() {
         return Err(format!(
             "Move {}: Expected {} to move, got {}",
-            move_number, state.current_player(), color
+            move_number,
+            state.current_player(),
+            color
         ));
     }
 
@@ -284,8 +292,7 @@ mod tests {
             }"#;
 
             let result = import_game_from_content(json);
-            // This may fail if the jump isn't valid - check actual board state
-            // The test verifies that jump parsing works
+            // This may fail if the jump isn't valid - check actual board state The test verifies that jump parsing works
             if result.is_err() {
                 // Jump validation is strict, ensure this is a genuine validation error
                 let err = result.unwrap_err();

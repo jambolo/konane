@@ -7,4 +7,4 @@ pub mod zhash;
 pub use ai::AiPlayer;
 pub use rules::Rules;
 pub use state::*;
-pub use zhash::{ZHash, Z};
+pub use zhash::{Z, ZHash};

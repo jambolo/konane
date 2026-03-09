@@ -1,6 +1,9 @@
 //! Zobrist hashing for game state.
 
 use crate::game::state::{Board, Cell, GamePhase, PieceColor, Position};
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use std::sync::LazyLock;
 
 /// Type alias for Zobrist hash values.
@@ -18,26 +21,6 @@ const MAX_POSITIONS: usize = MAX_SIZE * MAX_SIZE;
 /// Number of game phases.
 const NUM_PHASES: usize = 6;
 
-/// Simple XorShift64 PRNG.
-struct XorShift64 {
-    state: u64,
-}
-
-impl XorShift64 {
-    fn new(seed: u64) -> Self {
-        Self { state: seed }
-    }
-
-    fn next(&mut self) -> u64 {
-        let mut x = self.state;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.state = x;
-        x
-    }
-}
-
 /// Random number tables for Zobrist hashing.
 struct ZobristTables {
     pieces: [u64; MAX_POSITIONS],
@@ -47,18 +30,18 @@ struct ZobristTables {
 
 impl ZobristTables {
     fn new() -> Self {
-        let mut rng = XorShift64::new(0x12345678_9ABCDEF0);
+        let mut rng = ChaCha8Rng::seed_from_u64(0x12345678_9ABCDEF0);
 
         let mut pieces = [0u64; MAX_POSITIONS];
         for pos in &mut pieces {
-            *pos = rng.next();
+            *pos = rng.next_u64();
         }
 
-        let turn = rng.next();
+        let turn = rng.next_u64();
 
         let mut phases = [0u64; NUM_PHASES];
         for phase in &mut phases {
-            *phase = rng.next();
+            *phase = rng.next_u64();
         }
 
         Self { pieces, turn, phases }
@@ -77,8 +60,12 @@ fn phase_to_index(phase: &GamePhase) -> usize {
         GamePhase::OpeningBlackRemoval => 1,
         GamePhase::OpeningWhiteRemoval => 2,
         GamePhase::Play => 3,
-        GamePhase::GameOver { winner: PieceColor::Black } => 4,
-        GamePhase::GameOver { winner: PieceColor::White } => 5,
+        GamePhase::GameOver {
+            winner: PieceColor::Black,
+        } => 4,
+        GamePhase::GameOver {
+            winner: PieceColor::White,
+        } => 5,
     }
 }
 
@@ -212,9 +199,19 @@ mod tests {
         let board = Board::new(8);
         let original = ZHash::from_state(&board, &GamePhase::Play, PieceColor::Black);
         let mut hash = original;
-        hash.change_phase(&GamePhase::Play, &GamePhase::GameOver { winner: PieceColor::Black });
+        hash.change_phase(
+            &GamePhase::Play,
+            &GamePhase::GameOver {
+                winner: PieceColor::Black,
+            },
+        );
         assert_ne!(hash.value(), original.value());
-        hash.change_phase(&GamePhase::GameOver { winner: PieceColor::Black }, &GamePhase::Play);
+        hash.change_phase(
+            &GamePhase::GameOver {
+                winner: PieceColor::Black,
+            },
+            &GamePhase::Play,
+        );
         assert_eq!(hash.value(), original.value());
     }
 

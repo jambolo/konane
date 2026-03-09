@@ -178,8 +178,7 @@ impl Board {
             "Board size must be even, between 4 and 16"
         );
 
-        // Initialize with checkerboard pattern
-        // Per rules: "first lua contains a Black piece" - a1 (0,0) is Black
+        // Initialize with checkerboard pattern Per rules: "first lua contains a Black piece" - a1 (0,0) is Black
         let cells = Array2::from_shape_fn((size, size), |(row, col)| {
             // (0,0) = a1 = Black, checkerboard pattern
             let color = if (row + col) % 2 == 0 {
@@ -227,6 +226,7 @@ impl Board {
     }
 
     /// Returns the four center positions for the board.
+    ///
     /// For an NxN board, the center is at positions (N/2-1, N/2-1), (N/2-1, N/2), (N/2, N/2-1), (N/2, N/2).
     pub fn center_positions(&self) -> Vec<Position> {
         let mid = self.size / 2;
@@ -239,6 +239,7 @@ impl Board {
     }
 
     /// Returns the four corner positions.
+    ///
     /// Note: On an even-sized board with checkerboard pattern starting with Black at (0,0):
     /// - (0, 0) and (size-1, size-1) are Black (even sum)
     /// - (0, size-1) and (size-1, 0) are White (odd sum, since size is even)
@@ -267,8 +268,8 @@ pub struct GameState {
 
 impl GameState {
     pub fn new(board_size: usize, _first_player: PieceColor) -> Self {
-        // Note: first_player is recorded for future use (e.g., tracking which human is which color)
-        // The game always starts with Black making the first opening removal per Kōnane rules
+        // Note: first_player is recorded for future use (e.g., tracking which human is which color) The game always starts with
+        // Black making the first opening removal per Kōnane rules
         let board = Board::new(board_size);
         let phase = GamePhase::OpeningBlackRemoval;
         let current_player = PieceColor::Black;

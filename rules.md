@@ -33,7 +33,7 @@ The game begins with two specific removals before any jumping occurs:
 
 After the Opening Phase, all subsequent moves must follow these strict capturing rules:
 
-* **Turn-Based:** Players alternate turns.
+* **Turn-Based:** Players alternate turns. Players cannot "pass".
 * **Move Type:** All moves must be **capturing jumps**. There are no non-capturing moves.
 * **Direction:** Jumps must be **orthogonal** (Up, Down, Left, Right). No diagonal jumps.
 * **Mechanic:** A player moves their stone over an opponent's stone into an empty lua immediately behind it.
@@ -78,12 +78,12 @@ Captures are recorded using the **Starting Square**, a **dash**, and the **Endin
 
 A typical game transcript looks like this:
 
-| Turn | Move |
-| --- | --- |
-| 1 | **e4**    |
-| 2 | **d4**    |
-| 3 | **f4-d4** |
-| 4 | **d3-d5** |
+| Turn |   Move    |
+|------|-----------|
+|    1 | **e4**    |
+|    2 | **d4**    |
+|    3 | **f4-d4** |
+|    4 | **d3-d5** |
 
 ### 5. **Result Codes:**
 

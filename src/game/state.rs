@@ -258,7 +258,7 @@ impl Board {
 }
 
 #[derive(Debug, Clone)]
-pub struct GameState {
+pub struct KonaneState {
     board: Board,
     phase: GamePhase,
     current_player: PieceColor,
@@ -266,7 +266,7 @@ pub struct GameState {
     fingerprint: ZHash,
 }
 
-impl GameState {
+impl KonaneState {
     pub fn new(board_size: usize, _first_player: PieceColor) -> Self {
         // Note: first_player is recorded for future use (e.g., tracking which human is which color) The game always starts with
         // Black making the first opening removal per Kōnane rules
@@ -349,7 +349,7 @@ impl GameState {
 }
 
 /// Type for undo/redo stacks storing game state snapshots with their move history.
-pub type UndoRedoStack = Vec<(GameState, MoveHistory)>;
+pub type UndoRedoStack = Vec<(KonaneState, MoveHistory)>;
 
 #[cfg(test)]
 mod tests {
@@ -676,19 +676,19 @@ mod tests {
         }
     }
 
-    mod game_state {
+    mod konane_state {
         use super::*;
 
         #[test]
         fn new_starts_with_black_opening_removal() {
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
             assert_eq!(state.current_phase(), GamePhase::OpeningBlackRemoval);
             assert_eq!(state.current_player(), PieceColor::Black);
         }
 
         #[test]
         fn new_has_no_first_removal() {
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
             assert!(state.opening_position.is_none());
         }
     }

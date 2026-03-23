@@ -12,7 +12,7 @@ use ui::KonaneApp;
 struct Args {
     /// AI search depth (default: 8)
     #[arg(long, default_value_t = 8)]
-    ai_depth: i32,
+    ai_depth: u32,
 }
 
 fn main() -> iced::Result {

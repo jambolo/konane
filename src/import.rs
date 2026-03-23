@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use crate::game::rules::Jump;
-use crate::game::{GamePhase, GameState, MoveHistory, MoveRecord, PieceColor, Position, Rules, UndoRedoStack};
+use crate::game::{GamePhase, KonaneState, MoveHistory, MoveRecord, PieceColor, Position, Rules, UndoRedoStack};
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
@@ -12,17 +12,17 @@ pub struct ImportedGame {
 }
 
 /// Returns (final_state, move_history, undo_stack)
-pub fn import_game_from_path(path: &str) -> Result<(GameState, MoveHistory, UndoRedoStack), String> {
+pub fn import_game_from_path(path: &str) -> Result<(KonaneState, MoveHistory, UndoRedoStack), String> {
     let content = std::fs::read_to_string(path).map_err(|err| format!("Failed to read file: {}", err))?;
     import_game_from_content(&content)
 }
 
-pub fn import_game_from_content(content: &str) -> Result<(GameState, MoveHistory, UndoRedoStack), String> {
+pub fn import_game_from_content(content: &str) -> Result<(KonaneState, MoveHistory, UndoRedoStack), String> {
     let imported: ImportedGame = serde_json::from_str(content).map_err(|err| format!("Invalid JSON: {}", err))?;
 
     validate_board_size(imported.board_size)?;
 
-    let mut state = GameState::new(imported.board_size, PieceColor::Black);
+    let mut state = KonaneState::new(imported.board_size, PieceColor::Black);
     let mut move_history: MoveHistory = Vec::new();
     let mut undo_stack = Vec::new();
 
@@ -45,7 +45,7 @@ fn validate_board_size(board_size: usize) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_number: usize) -> Result<MoveRecord, String> {
+fn validate_and_apply_move(state: &mut KonaneState, record: MoveRecord, move_number: usize) -> Result<MoveRecord, String> {
     match record {
         MoveRecord::OpeningRemoval { color, position } => {
             validate_opening_removal(state, color, position, move_number)?;
@@ -63,7 +63,7 @@ fn validate_and_apply_move(state: &mut GameState, record: MoveRecord, move_numbe
     }
 }
 
-fn validate_opening_removal(state: &GameState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
+fn validate_opening_removal(state: &KonaneState, color: PieceColor, position: Position, move_number: usize) -> Result<(), String> {
     if !matches!(
         state.current_phase(),
         GamePhase::OpeningBlackRemoval | GamePhase::OpeningWhiteRemoval
@@ -90,7 +90,7 @@ fn validate_opening_removal(state: &GameState, color: PieceColor, position: Posi
 }
 
 fn validate_jump(
-    state: &GameState,
+    state: &KonaneState,
     color: PieceColor,
     from: Position,
     to: Position,
@@ -137,7 +137,7 @@ fn validate_jump(
     Ok(jump)
 }
 
-fn validate_position_in_bounds(state: &GameState, position: Position, move_number: usize, label: &str) -> Result<(), String> {
+fn validate_position_in_bounds(state: &KonaneState, position: Position, move_number: usize, label: &str) -> Result<(), String> {
     let size = state.board().size();
     if position.row >= size || position.col >= size {
         return Err(format!("Move {}: {} {} is out of bounds", move_number, label, position));
@@ -145,7 +145,7 @@ fn validate_position_in_bounds(state: &GameState, position: Position, move_numbe
     Ok(())
 }
 
-fn validate_winner(state: &GameState, winner: Option<String>) -> Result<(), String> {
+fn validate_winner(state: &KonaneState, winner: Option<String>) -> Result<(), String> {
     let Some(winner) = winner else {
         return Ok(());
     };

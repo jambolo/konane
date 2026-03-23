@@ -9,8 +9,9 @@ cargo build                    # Debug build
 cargo build --release          # Release build
 cargo run                      # Run the game (AI depth: 8)
 cargo run -- --ai-depth 12     # Run with custom AI depth
-cargo test                     # Run all tests
+cargo test                     # Run all tests (unit + tests/import_tests.rs)
 cargo test <test_name>         # Run specific test
+cargo test --test import_tests # Run only the integration test file
 cargo clippy                   # Lint
 cargo fmt                      # Format code
 ```
@@ -27,7 +28,11 @@ cargo fmt                      # Format code
 
 ## Kōnane Design
 
+The full rules of the game (authoritative reference for any rules question) are in [rules.md](rules.md).
+
 ### Architecture
+
+This is a **Cargo workspace** with two members: the root crate (`konane`) and `game-player/`. The root crate is both a **library** (`src/lib.rs`) and a **binary** (`src/main.rs`).
 
 **Module Structure:**
 
@@ -35,8 +40,11 @@ cargo fmt                      # Format code
 - `game/rules.rs`: Game logic (move validation, jump calculation, state transitions)
 - `game/player.rs`: Player abstraction trait
 - `game/ai.rs`: AI player using minimax search
-- `game-player/`: Submodule providing minimax with alpha-beta pruning and transposition table
+- `game/zhash.rs`: Zobrist hashing for board positions (used as the transposition-table key); RNG is `ChaCha8` for reproducible hashes across runs
+- `game-player/`: Workspace member providing minimax with alpha-beta pruning and transposition table
 - `ui/`: All iced UI code, decoupled from game logic
+- `import.rs`: JSON game file validation and replay
+- `tests/import_tests.rs`: Integration tests for the import path
 
 **Why this separation:**
 
@@ -77,6 +85,10 @@ Uses algebraic notation conventions matching the rules specification:
 - Column increases **rightward** (file a, b, c...)
 - `Position::to_algebraic()` converts to "a1", "e4" format
 - `Position::from_algebraic()` parses algebraic notation
+
+### Board Size Constraints
+
+- Supported sizes: **4×4 to 16×16, even sizes only**. The setup view enforces this; rules and AI code assume even-sided square boards.
 
 ### Initial Stone Placement
 

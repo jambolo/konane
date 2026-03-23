@@ -6,7 +6,7 @@ use konane::import;
 
 use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
-use crate::game::{AiPlayer, GamePhase, GameState, MoveHistory, PieceColor, Position, Rules, UndoRedoStack};
+use crate::game::{AiPlayer, GamePhase, KonaneState, MoveHistory, PieceColor, Position, Rules, UndoRedoStack};
 use crate::ui::board_view::{BoardMessage, BoardView};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
@@ -29,7 +29,7 @@ pub enum AppView {
 pub struct KonaneApp {
     view: AppView,
     setup: SetupView,
-    game_state: Option<GameState>,
+    game_state: Option<KonaneState>,
     board_view: BoardView,
     game_over_view: Option<GameOverView>,
     status_message: String,
@@ -39,7 +39,7 @@ pub struct KonaneApp {
     black_player_type: PlayerType,
     white_player_type: PlayerType,
     ai_computing: bool,
-    ai_depth: i32,
+    ai_depth: u32,
 }
 
 impl Default for KonaneApp {
@@ -63,7 +63,7 @@ impl Default for KonaneApp {
 }
 
 impl KonaneApp {
-    pub fn new(ai_depth: i32) -> (Self, iced::Task<Message>) {
+    pub fn new(ai_depth: u32) -> (Self, iced::Task<Message>) {
         let app = Self {
             ai_depth,
             ..Default::default()
@@ -113,7 +113,7 @@ impl KonaneApp {
             }
             SetupMessage::StartGame => {
                 let first_player = self.setup.color_option.to_piece_color();
-                self.game_state = Some(GameState::new(self.setup.board_size, first_player));
+                self.game_state = Some(KonaneState::new(self.setup.board_size, first_player));
                 self.board_view = BoardView::default();
                 self.move_history.clear();
                 self.undo_stack.clear();

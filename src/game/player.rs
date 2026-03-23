@@ -16,7 +16,7 @@ pub trait Player {
 
     // Called when it's this player's turn Human players return None and wait for UI input AI players could compute and return a
     // move directly
-    fn request_move(&mut self, state: &GameState) -> Option<PlayerMove>;
+    fn request_move(&mut self, state: &KonaneState) -> Option<PlayerMove>;
 
     // For human players, this is called when the UI receives input
     fn receive_input(&mut self, input: PlayerInput);
@@ -55,7 +55,7 @@ impl Player for HumanPlayer {
         self.color
     }
 
-    fn request_move(&mut self, _state: &GameState) -> Option<PlayerMove> {
+    fn request_move(&mut self, _state: &KonaneState) -> Option<PlayerMove> {
         self.pending_move.take()
     }
 
@@ -135,7 +135,7 @@ mod tests {
         #[test]
         fn request_move_returns_and_clears() {
             let mut player = create_player();
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
 
             player.receive_input(PlayerInput::PositionSelected(Position::new(3, 3)));
             let mv = player.request_move(&state);
@@ -155,7 +155,7 @@ mod tests {
         #[test]
         fn request_move_returns_none_when_not_ready() {
             let mut player = create_player();
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
 
             let mv = player.request_move(&state);
             assert!(mv.is_none());
@@ -164,7 +164,7 @@ mod tests {
         #[test]
         fn request_move_returns_jump() {
             let mut player = create_player();
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
 
             let jump = Jump {
                 from: Position::new(0, 0),

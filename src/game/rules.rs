@@ -13,7 +13,7 @@ pub struct Rules;
 
 impl Rules {
     // Opening phase: Black's valid removal positions (centers and corners with black pieces)
-    pub fn valid_black_opening_removals(state: &GameState) -> Vec<Position> {
+    pub fn valid_black_opening_removals(state: &KonaneState) -> Vec<Position> {
         // * Center positions -- black's center positions are always (N/2-1, N/2-1) and (N/2, N/2)
         // * Corner positions -- black's corner positions are always (0, 0) and (N-1, N-1)
         let board_size = state.board().size();
@@ -35,7 +35,7 @@ impl Rules {
     }
 
     // Opening phase: White's valid removal positions (white pieces adjacent to empty)
-    pub fn valid_white_opening_removals(state: &GameState) -> Vec<Position> {
+    pub fn valid_white_opening_removals(state: &KonaneState) -> Vec<Position> {
         let mut positions = Vec::new();
 
         if let Some(empty_pos) = state.get_opening_position() {
@@ -72,7 +72,7 @@ impl Rules {
     }
 
     // Get all possible jumps for a piece at a given position
-    pub fn valid_jumps_from(state: &GameState, from: Position) -> Vec<Jump> {
+    pub fn valid_jumps_from(state: &KonaneState, from: Position) -> Vec<Jump> {
         let board = state.board();
         let player = state.current_player();
 
@@ -131,7 +131,7 @@ impl Rules {
     }
 
     // Get all valid jumps for the current player
-    pub fn all_valid_jumps(state: &GameState) -> Vec<Jump> {
+    pub fn all_valid_jumps(state: &KonaneState) -> Vec<Jump> {
         let mut jumps = Vec::new();
         let size = state.board().size();
 
@@ -146,7 +146,7 @@ impl Rules {
     }
 
     // Check if the current player has any valid moves
-    pub fn has_valid_move(state: &GameState) -> bool {
+    pub fn has_valid_move(state: &KonaneState) -> bool {
         match state.current_phase() {
             GamePhase::OpeningBlackRemoval => !Self::valid_black_opening_removals(state).is_empty(),
             GamePhase::OpeningWhiteRemoval => !Self::valid_white_opening_removals(state).is_empty(),
@@ -156,7 +156,7 @@ impl Rules {
     }
 
     // Get pieces that can move (have valid jumps)
-    pub fn movable_pieces(state: &GameState) -> Vec<Position> {
+    pub fn movable_pieces(state: &KonaneState) -> Vec<Position> {
         let mut pieces = Vec::new();
         let size = state.board().size();
 
@@ -173,7 +173,7 @@ impl Rules {
     }
 
     // Apply a jump to the game state, returns the move record
-    pub fn apply_jump(state: &mut GameState, jump: &Jump) -> MoveRecord {
+    pub fn apply_jump(state: &mut KonaneState, jump: &Jump) -> MoveRecord {
         let player = state.current_player();
 
         // Move the piece
@@ -201,7 +201,7 @@ impl Rules {
     }
 
     // Apply opening removal, returns the move record
-    pub fn apply_opening_removal(state: &mut GameState, pos: Position) -> Result<MoveRecord, &'static str> {
+    pub fn apply_opening_removal(state: &mut KonaneState, pos: Position) -> Result<MoveRecord, &'static str> {
         match state.current_phase() {
             GamePhase::OpeningBlackRemoval => {
                 if !Self::valid_black_opening_removals(state).contains(&pos) {
@@ -243,8 +243,8 @@ impl Rules {
 mod tests {
     use super::*;
 
-    fn setup_play_phase() -> GameState {
-        let mut state = GameState::new(8, PieceColor::Black);
+    fn setup_play_phase() -> KonaneState {
+        let mut state = KonaneState::new(8, PieceColor::Black);
         // Remove center black piece
         let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
         // Remove adjacent white piece
@@ -257,7 +257,7 @@ mod tests {
 
         #[test]
         fn returns_center_and_corner_black_pieces() {
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
             let valid = Rules::valid_black_opening_removals(&state);
 
             // Center black pieces: (3,3) and (4,4) have even sum
@@ -275,7 +275,7 @@ mod tests {
 
         #[test]
         fn only_black_pieces_on_4x4() {
-            let state = GameState::new(4, PieceColor::Black);
+            let state = KonaneState::new(4, PieceColor::Black);
             let valid = Rules::valid_black_opening_removals(&state);
 
             for pos in &valid {
@@ -289,7 +289,7 @@ mod tests {
 
         #[test]
         fn returns_white_pieces_adjacent_to_removed() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             // Black removes d4 (3,3)
             let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
 
@@ -308,7 +308,7 @@ mod tests {
 
         #[test]
         fn returns_empty_before_black_removal() {
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
             let valid = Rules::valid_white_opening_removals(&state);
             assert!(valid.is_empty());
         }
@@ -352,7 +352,7 @@ mod tests {
             // (3,2) can jump right over d4? No, d4 is empty Black at f4 (3,5) can jump left over e4? No, e4 is empty
 
             // We need to set up a specific scenario
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             let _ = Rules::apply_opening_removal(&mut state, Position::new(1, 1)); // b2
             let _ = Rules::apply_opening_removal(&mut state, Position::new(1, 2)); // c2
 
@@ -360,7 +360,7 @@ mod tests {
             // over c2? c2 is empty - no
 
             // We need opponent between piece and empty Let's manually set up the board
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
             // Black at a1 (0,0), White at b1 (0,1), Empty at c1 (0,2) Black can jump from a1 over b1 to c1
@@ -374,7 +374,7 @@ mod tests {
 
         #[test]
         fn finds_multi_jump_in_same_direction() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Set up: Black at a1, White at b1, Empty at c1, White at d1, Empty at e1
@@ -402,7 +402,7 @@ mod tests {
 
         #[test]
         fn jumps_only_in_same_direction_for_multi() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Black at c3 (2,2), can jump right and also up
@@ -428,7 +428,7 @@ mod tests {
 
         #[test]
         fn collects_jumps_from_all_pieces() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
             state.remove_stone(Position::new(2, 0)); // a3 empty
@@ -445,20 +445,20 @@ mod tests {
 
         #[test]
         fn true_during_opening_black() {
-            let state = GameState::new(8, PieceColor::Black);
+            let state = KonaneState::new(8, PieceColor::Black);
             assert!(Rules::has_valid_move(&state));
         }
 
         #[test]
         fn true_during_opening_white() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
             assert!(Rules::has_valid_move(&state));
         }
 
         #[test]
         fn false_when_no_jumps_available() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Remove all white pieces so black can't jump
@@ -476,7 +476,7 @@ mod tests {
 
         #[test]
         fn false_during_game_over() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::GameOver {
                 winner: PieceColor::Black,
             });
@@ -489,7 +489,7 @@ mod tests {
 
         #[test]
         fn returns_pieces_with_valid_jumps() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
 
@@ -501,7 +501,7 @@ mod tests {
 
         #[test]
         fn returns_empty_when_no_moves() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Remove all white pieces
@@ -523,7 +523,7 @@ mod tests {
 
         #[test]
         fn moves_piece_to_destination() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
 
@@ -542,7 +542,7 @@ mod tests {
 
         #[test]
         fn removes_captured_pieces() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
 
@@ -560,7 +560,7 @@ mod tests {
 
         #[test]
         fn switches_player() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2));
 
@@ -578,7 +578,7 @@ mod tests {
 
         #[test]
         fn returns_move_record() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2));
 
@@ -609,7 +609,7 @@ mod tests {
 
         #[test]
         fn ends_game_when_opponent_has_no_moves() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Remove all white pieces except one that will be captured
@@ -647,7 +647,7 @@ mod tests {
 
         #[test]
         fn black_removal_transitions_to_white_phase() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let result = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
 
             assert!(result.is_ok());
@@ -657,7 +657,7 @@ mod tests {
 
         #[test]
         fn black_removal_sets_first_removal_pos() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let pos = Position::new(3, 3);
             let _ = Rules::apply_opening_removal(&mut state, pos);
 
@@ -666,7 +666,7 @@ mod tests {
 
         #[test]
         fn black_removal_returns_move_record() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let result = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
 
             assert!(result.is_ok());
@@ -681,7 +681,7 @@ mod tests {
 
         #[test]
         fn white_removal_transitions_to_play() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
             let result = Rules::apply_opening_removal(&mut state, Position::new(3, 4));
 
@@ -692,7 +692,7 @@ mod tests {
 
         #[test]
         fn rejects_invalid_black_position() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             // Position (0,1) is white, not valid for black removal
             let result = Rules::apply_opening_removal(&mut state, Position::new(0, 1));
             assert!(result.is_err());
@@ -700,7 +700,7 @@ mod tests {
 
         #[test]
         fn rejects_invalid_white_position() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             let _ = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
             // Position (0,0) is not adjacent to the removed piece
             let result = Rules::apply_opening_removal(&mut state, Position::new(0, 0));
@@ -709,7 +709,7 @@ mod tests {
 
         #[test]
         fn rejects_during_play_phase() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             let result = Rules::apply_opening_removal(&mut state, Position::new(3, 3));
             assert!(result.is_err());
@@ -721,7 +721,7 @@ mod tests {
 
         #[test]
         fn complete_game_sequence() {
-            let mut state = GameState::new(4, PieceColor::Black);
+            let mut state = KonaneState::new(4, PieceColor::Black);
 
             // Opening: Black removes b2 (1,1)
             assert!(Rules::apply_opening_removal(&mut state, Position::new(1, 1)).is_ok());
@@ -740,7 +740,7 @@ mod tests {
 
         #[test]
         fn multi_jump_captures_multiple_pieces() {
-            let mut state = GameState::new(8, PieceColor::Black);
+            let mut state = KonaneState::new(8, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
             // Set up a multi-jump scenario

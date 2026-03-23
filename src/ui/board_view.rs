@@ -8,11 +8,11 @@ use iced::widget::image::Handle;
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
 
 use crate::game::rules::Jump;
-use crate::game::{Cell, GamePhase, GameState, PieceColor, Position, Rules};
+use crate::game::{Cell, GamePhase, KonaneState, PieceColor, Position, Rules};
 
 static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
 static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
-static BACKGROUND_PATH: &str = "data/background.png";
+static BACKGROUND_PATH: &str = "data/background-2.png";
 
 static BLACK_STONE: OnceLock<Handle> = OnceLock::new();
 static WHITE_STONE: OnceLock<Handle> = OnceLock::new();
@@ -152,7 +152,7 @@ impl BoardView {
         self.stone_cache.clear();
         self.highlight_cache.clear();
     }
-    pub fn view<'a>(&'a self, state: &'a GameState) -> Element<'a, BoardMessage> {
+    pub fn view<'a>(&'a self, state: &'a KonaneState) -> Element<'a, BoardMessage> {
         // Use Stack to layer canvases - iced's canvas batches primitives by type, so images always render on top of paths within
         // the same Frame. Separate Canvas widgets in a Stack give true z-ordering.
         let background = Canvas::new(BackgroundCanvas {
@@ -190,18 +190,18 @@ impl BoardView {
 }
 
 struct BackgroundCanvas<'a> {
-    state: &'a GameState,
+    state: &'a KonaneState,
     cache: &'a canvas::Cache,
 }
 
 struct HighlightCanvas<'a> {
-    state: &'a GameState,
+    state: &'a KonaneState,
     selection: &'a SelectionState,
     cache: &'a canvas::Cache,
 }
 
 struct StoneCanvas<'a> {
-    state: &'a GameState,
+    state: &'a KonaneState,
     selection: &'a SelectionState,
     animations: &'a Vec<RemovalAnimation>,
     cache: &'a canvas::Cache,

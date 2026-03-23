@@ -7,12 +7,10 @@ Kōnane is a traditional Hawaiian strategy board game.
 ## Features
 
 - Configurable board sizes (4x4 to 16x16)
-- Play as Black, White, or random color assignment
 - Human vs Human, Human vs AI, or AI vs AI
 - Undo/Redo support
 - Game import/export (JSON and text formats)
 - Move history with algebraic notation
-- Optional sound effects
 
 ## Game Description
 

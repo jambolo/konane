@@ -128,7 +128,7 @@ fn validate_jump(
     let valid_jumps = Rules::valid_jumps_from(state, from);
     let matching_jump = valid_jumps
         .into_iter()
-        .find(|jump| jump.to == to && jump.captured == captured);
+        .find(|jump| jump.to() == to && jump.captured().eq(captured.iter().copied()));
 
     let Some(jump) = matching_jump else {
         return Err(format!("Move {}: Invalid jump from {} to {}", move_number, from, to));
@@ -140,7 +140,10 @@ fn validate_jump(
 fn validate_position_in_bounds(state: &KonaneState, position: Position, move_number: usize, label: &str) -> Result<(), String> {
     let size = state.board().size();
     if position.row >= size || position.col >= size {
-        return Err(format!("Move {}: {} {} is out of bounds", move_number, label, position));
+        return Err(format!(
+            "Move {}: {} (row {}, col {}) is out of bounds",
+            move_number, label, position.row, position.col
+        ));
     }
     Ok(())
 }
@@ -292,7 +295,8 @@ mod tests {
             }"#;
 
             let result = import_game_from_content(json);
-            // This may fail if the jump isn't valid - check actual board state The test verifies that jump parsing works
+            // This may fail if the jump isn't valid - check actual board state.
+            // The test verifies that jump parsing works.
             if let Err(err) = result {
                 // Jump validation is strict, ensure this is a genuine validation error
                 assert!(

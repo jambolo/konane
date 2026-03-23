@@ -68,7 +68,7 @@ The initial removals are recorded by the coordinate of the stone removed:
 
 ### 3. Movement and Capture Notation
 
-Captures are recorded using the **Starting Square**, a **dash**, and the **Ending Square**.
+Captures are recorded using the **Starting Lua**, a **dash**, and the **Ending Lua**.
 
 * **Single Jump:** If a piece on `c3` jumps over a piece on `d3` to land on `e3`, it is written as: **`c3-e3`**.
 * **Multi-Jump:** Because multi-jumps must continue in a straight line, you only need to record the final destination. If a piece on `c3` jumps three pieces in a row to land on `i3`, it is written as: **`c3-i3`**.

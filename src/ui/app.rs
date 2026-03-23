@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use iced::widget::{Space, button, column, container, row, scrollable, stack, text};
@@ -10,6 +12,9 @@ use crate::game::{AiPlayer, GamePhase, KonaneState, MoveHistory, PieceColor, Pos
 use crate::ui::board_view::{BoardMessage, BoardView};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
+
+// Held for the duration of an AI search so that searches run one at a time
+static AI_SEARCH_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -41,8 +46,8 @@ pub struct KonaneApp {
     white_player_type: PlayerType,
     ai_computing: bool,
     ai_depth: u32,
-    // Incremented whenever a pending AI result must be discarded (game canceled/restarted)
-    ai_generation: u64,
+    // Incremented whenever a pending AI result must be discarded (game canceled/restarted, undo/redo)
+    ai_generation: Arc<AtomicU64>,
 }
 
 impl Default for KonaneApp {
@@ -61,7 +66,7 @@ impl Default for KonaneApp {
             white_player_type: PlayerType::Human,
             ai_computing: false,
             ai_depth: 8,
-            ai_generation: 0,
+            ai_generation: Arc::new(AtomicU64::new(0)),
         }
     }
 }
@@ -90,9 +95,7 @@ impl KonaneApp {
             }
             Message::AiMoveComputed(generation, maybe_move) => self.handle_ai_move(generation, maybe_move),
             Message::NewGame => {
-                // Invalidate any in-flight AI computation so its result is discarded
-                self.ai_generation += 1;
-                self.ai_computing = false;
+                self.cancel_ai_move();
                 self.view = AppView::Setup;
                 self.game_state = None;
                 self.game_over_view = None;
@@ -165,11 +168,15 @@ impl KonaneApp {
                         self.move_history = move_history;
                         self.undo_stack = undo_stack;
                         self.redo_stack.clear();
+                        self.black_player_type = self.setup.black_player_type;
+                        self.white_player_type = self.setup.white_player_type;
+                        self.ai_computing = false;
                         self.view = AppView::Playing;
                         self.update_status();
                         self.setup.show_import_modal = false;
                         self.setup.import_path.clear();
                         self.setup.import_error = None;
+                        return self.maybe_trigger_ai_move();
                     }
                     Err(error) => {
                         self.setup.show_import_modal = true;
@@ -277,9 +284,8 @@ impl KonaneApp {
 
         // Get captured piece colors and positions before the move
         let captured_info: Vec<(Position, PieceColor)> = jump
-            .captured
-            .iter()
-            .filter_map(|&pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
+            .captured()
+            .filter_map(|pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
             .collect();
 
         self.save_state_for_undo();
@@ -350,8 +356,15 @@ impl KonaneApp {
         }
     }
 
+    // Invalidates any in-flight AI computation so its result is discarded
+    fn cancel_ai_move(&mut self) {
+        self.ai_generation.fetch_add(1, Ordering::Relaxed);
+        self.ai_computing = false;
+    }
+
     fn handle_undo(&mut self) {
         if let Some((previous_state, previous_history)) = self.undo_stack.pop() {
+            self.cancel_ai_move();
             if let Some(current_state) = self.game_state.take() {
                 self.redo_stack.push((current_state, self.move_history.clone()));
             }
@@ -365,6 +378,7 @@ impl KonaneApp {
 
     fn handle_redo(&mut self) {
         if let Some((next_state, next_history)) = self.redo_stack.pop() {
+            self.cancel_ai_move();
             if let Some(current_state) = self.game_state.take() {
                 self.undo_stack.push((current_state, self.move_history.clone()));
             }
@@ -442,7 +456,8 @@ impl KonaneApp {
 
         let state_clone = state.clone();
         let depth = self.ai_depth;
-        let generation = self.ai_generation;
+        let current_generation = Arc::clone(&self.ai_generation);
+        let generation = current_generation.load(Ordering::Relaxed);
 
         self.ai_computing = true;
         self.update_status();
@@ -450,6 +465,11 @@ impl KonaneApp {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    // Wait for any earlier search to finish, then skip this one if it was canceled while waiting
+                    let _guard = AI_SEARCH_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+                    if current_generation.load(Ordering::Relaxed) != generation {
+                        return None;
+                    }
                     let mut ai = AiPlayer::new(state_clone.current_player(), depth);
                     ai.request_move(&state_clone)
                 })
@@ -463,7 +483,7 @@ impl KonaneApp {
 
     fn handle_ai_move(&mut self, generation: u64, maybe_move: Option<PlayerMove>) -> Task<Message> {
         // Result from a canceled game — ignore it
-        if generation != self.ai_generation {
+        if generation != self.ai_generation.load(Ordering::Relaxed) {
             return Task::none();
         }
 
@@ -493,9 +513,8 @@ impl KonaneApp {
                     return Task::none();
                 };
                 let captured_info: Vec<(Position, PieceColor)> = jump
-                    .captured
-                    .iter()
-                    .filter_map(|&pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
+                    .captured()
+                    .filter_map(|pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
                     .collect();
 
                 self.save_state_for_undo();

@@ -1,6 +1,6 @@
-use ndarray::Array2;
 use serde::{Deserialize, Serialize};
 
+use crate::game::bitboard::Bitboard;
 use crate::game::zhash::{Z, ZHash};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -14,6 +14,23 @@ impl PieceColor {
         match self {
             PieceColor::Black => PieceColor::White,
             PieceColor::White => PieceColor::Black,
+        }
+    }
+
+    /// Lua this color's stones can occupy: (row + col) even for Black, odd for White.
+    pub fn lua(self) -> Bitboard {
+        match self {
+            PieceColor::Black => Bitboard::EVEN,
+            PieceColor::White => Bitboard::ODD,
+        }
+    }
+
+    /// Color of any stone at `pos`. Jumps move two lua, so a lua's color never changes.
+    pub fn of(pos: Position) -> PieceColor {
+        if (pos.row + pos.col).is_multiple_of(2) {
+            PieceColor::Black
+        } else {
+            PieceColor::White
         }
     }
 }
@@ -99,6 +116,25 @@ impl Direction {
             _ => None,
         }
     }
+
+    pub fn opposite(self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
+
+    /// Position `n` steps from `pos`. The result must be on the board.
+    pub fn step(self, pos: Position, n: usize) -> Position {
+        match self {
+            Direction::Up => Position::new(pos.row + n, pos.col),
+            Direction::Down => Position::new(pos.row - n, pos.col),
+            Direction::Left => Position::new(pos.row, pos.col - n),
+            Direction::Right => Position::new(pos.row, pos.col + n),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,10 +201,12 @@ impl std::fmt::Display for MoveRecord {
 pub type MoveHistory = Vec<MoveRecord>;
 
 /// Coordinate system: (row, col) where (0, 0) is the bottom-left corner.
-#[derive(Debug, Clone)]
+///
+/// Only occupancy is stored. A stone's color is implied by its lua (see `PieceColor::of`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Board {
     size: usize,
-    cells: Array2<Cell>,
+    occupied: Bitboard,
 }
 
 impl Board {
@@ -178,51 +216,64 @@ impl Board {
             "Board size must be even, between 4 and 16"
         );
 
-        // Initialize with checkerboard pattern Per rules: "first lua contains a Black piece" - a1 (0,0) is Black
-        let cells = Array2::from_shape_fn((size, size), |(row, col)| {
-            // (0,0) = a1 = Black, checkerboard pattern
-            let color = if (row + col) % 2 == 0 {
-                PieceColor::Black
-            } else {
-                PieceColor::White
-            };
-            Cell::Occupied(color)
-        });
-
-        Self { size, cells }
+        // Every lua starts occupied; the checkerboard colors follow from lua parity
+        Self {
+            size,
+            occupied: Bitboard::board(size),
+        }
     }
 
     pub fn size(&self) -> usize {
         self.size
     }
 
-    pub fn get(&self, pos: Position) -> Option<Cell> {
-        if pos.row < self.size && pos.col < self.size {
-            Some(self.cells[[pos.row, pos.col]])
-        } else {
-            None
-        }
+    /// All occupied lua
+    pub fn occupied(&self) -> Bitboard {
+        self.occupied
     }
 
-    pub fn set(&mut self, pos: Position, cell: Cell) {
-        if pos.row < self.size && pos.col < self.size {
-            self.cells[[pos.row, pos.col]] = cell;
+    /// Lua occupied by `color`
+    pub fn stones(&self, color: PieceColor) -> Bitboard {
+        self.occupied & color.lua()
+    }
+
+    /// Empty lua that a `color` stone could land on
+    pub fn vacancies(&self, color: PieceColor) -> Bitboard {
+        color.lua() & Bitboard::board(self.size) & !self.occupied
+    }
+
+    fn in_bounds(&self, pos: Position) -> bool {
+        pos.row < self.size && pos.col < self.size
+    }
+
+    pub fn get(&self, pos: Position) -> Option<Cell> {
+        if !self.in_bounds(pos) {
+            None
+        } else if self.occupied.contains(pos) {
+            Some(Cell::Occupied(PieceColor::of(pos)))
+        } else {
+            Some(Cell::Empty)
         }
     }
 
     pub fn remove_stone(&mut self, pos: Position) {
-        self.set(pos, Cell::Empty);
+        if self.in_bounds(pos) {
+            self.occupied &= !Bitboard::from_position(pos);
+        }
+    }
+
+    pub fn place_stone(&mut self, pos: Position) {
+        if self.in_bounds(pos) {
+            self.occupied |= Bitboard::from_position(pos);
+        }
     }
 
     pub fn is_empty(&self, pos: Position) -> bool {
-        matches!(self.get(pos), Some(Cell::Empty))
+        self.in_bounds(pos) && !self.occupied.contains(pos)
     }
 
     pub fn get_piece_color(&self, pos: Position) -> Option<PieceColor> {
-        match self.get(pos) {
-            Some(Cell::Occupied(color)) => Some(color),
-            _ => None,
-        }
+        (self.in_bounds(pos) && self.occupied.contains(pos)).then(|| PieceColor::of(pos))
     }
 
     /// Returns the four center positions for the board.
@@ -268,8 +319,8 @@ pub struct KonaneState {
 
 impl KonaneState {
     pub fn new(board_size: usize, _first_player: PieceColor) -> Self {
-        // Note: first_player is recorded for future use (e.g., tracking which human is which color) The game always starts with
-        // Black making the first opening removal per Kōnane rules
+        // Note: first_player is recorded for future use (e.g., tracking which human is which color). The game always starts with
+        // Black making the first opening removal per Kōnane rules.
         let board = Board::new(board_size);
         let phase = GamePhase::OpeningBlackRemoval;
         let current_player = PieceColor::Black;
@@ -324,8 +375,9 @@ impl KonaneState {
 
     /// Moves a stone on the board and updates the fingerprint.
     pub fn move_stone(&mut self, from: Position, to: Position) {
+        debug_assert_eq!(PieceColor::of(from), PieceColor::of(to));
         self.board.remove_stone(from);
-        self.board.set(to, Cell::Occupied(self.current_player));
+        self.board.place_stone(to);
         self.fingerprint.move_stone(from, to);
     }
 
@@ -558,11 +610,13 @@ mod tests {
         }
 
         #[test]
-        fn set_and_get() {
+        fn place_restores_parity_color() {
             let mut board = Board::new(4);
-            let pos = Position::new(1, 1);
-            board.set(pos, Cell::Empty);
+            let pos = Position::new(1, 2);
+            board.remove_stone(pos);
             assert_eq!(board.get(pos), Some(Cell::Empty));
+            board.place_stone(pos);
+            assert_eq!(board.get(pos), Some(Cell::Occupied(PieceColor::White)));
         }
 
         #[test]

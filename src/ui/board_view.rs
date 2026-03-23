@@ -221,7 +221,7 @@ fn compute_board_layout(board_size: usize, bounds: Rectangle) -> (f32, f32, f32)
     (cell_size, offset_x, offset_y)
 }
 
-/// Convert board position to screen coordinates Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP
+/// Convert board position to screen coordinates. Row 0 is at the BOTTOM of the screen, row N-1 is at the TOP.
 fn board_to_screen(pos: Position, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32) -> Point {
     let screen_row = (board_size - 1) - pos.row;
     Point::new(
@@ -372,7 +372,7 @@ impl<'a> HighlightCanvas<'a> {
 
         let (selected_pos, valid_destinations): (Option<Position>, Vec<Position>) = match self.selection {
             SelectionState::PieceSelected(pos, jumps) => {
-                let destinations: Vec<Position> = jumps.iter().map(|j| j.to).collect();
+                let destinations: Vec<Position> = jumps.iter().map(|j| j.to()).collect();
                 (Some(*pos), destinations)
             }
             SelectionState::None => (None, Vec::new()),
@@ -463,8 +463,8 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
             ) {
                 if let SelectionState::PieceSelected(_, jumps) = self.selection {
                     for jump in jumps {
-                        if jump.to == pos {
-                            return Some(Action::publish(BoardMessage::JumpSelected(jump.clone())).and_capture());
+                        if jump.to() == pos {
+                            return Some(Action::publish(BoardMessage::JumpSelected(*jump)).and_capture());
                         }
                     }
                 }

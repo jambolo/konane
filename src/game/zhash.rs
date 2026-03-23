@@ -1,6 +1,6 @@
 //! Zobrist hashing for game state.
 
-use crate::game::state::{Board, Cell, GamePhase, PieceColor, Position};
+use crate::game::state::{Board, GamePhase, PieceColor, Position};
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -80,14 +80,8 @@ impl ZHash {
     pub fn from_state(board: &Board, phase: &GamePhase, turn: PieceColor) -> Self {
         let mut value: Z = 0;
 
-        let size = board.size();
-        for row in 0..size {
-            for col in 0..size {
-                let pos = Position::new(row, col);
-                if let Some(Cell::Occupied(_)) = board.get(pos) {
-                    value ^= TABLES.pieces[pos_to_index(pos)];
-                }
-            }
+        for pos in board.occupied().positions() {
+            value ^= TABLES.pieces[pos_to_index(pos)];
         }
 
         if turn == PieceColor::White {

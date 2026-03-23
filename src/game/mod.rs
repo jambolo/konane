@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod bitboard;
 pub mod player;
 pub mod rules;
 pub mod state;

@@ -61,18 +61,18 @@ impl StaticEvaluator for KonaneEvaluator {
             };
         }
 
-        // Mobility is only defined once jumping starts; during the opening removals neither player has any, so the zero-mobility
-        // shortcuts below would misread every opening state as a decided game.
+        // Opening phases evaluate as neutral
         if state.current_phase() != GamePhase::Play {
             return 0.0;
         }
 
         // Mobility heuristic: count valid moves for each player
-        let black_mobility = count_mobility_for(state, PieceColor::Black);
+        let board = state.board();
+        let black_mobility = Rules::mobility(board, PieceColor::Black) as i32;
         if state.current_player() == PieceColor::Black && black_mobility == 0 {
             return self.bob_wins_value();
         }
-        let white_mobility = count_mobility_for(state, PieceColor::White);
+        let white_mobility = Rules::mobility(board, PieceColor::White) as i32;
         if state.current_player() == PieceColor::White && white_mobility == 0 {
             return self.alice_wins_value();
         }
@@ -89,21 +89,9 @@ impl StaticEvaluator for KonaneEvaluator {
     }
 }
 
-fn count_mobility_for(state: &KonaneState, color: PieceColor) -> i32 {
-    let mut temp_state = state.clone();
-    temp_state.set_current_player(color);
-
-    match temp_state.current_phase() {
-        GamePhase::Play | GamePhase::GameOver { .. } => Rules::all_valid_jumps(&temp_state).len() as i32,
-        _ => 0,
-    }
-}
-
 pub struct KonaneMoveGenerator;
 
-/// Both opening removals are heavily constrained by symmetry and are not known to affect the outcome, so with the `random-openings`
-/// feature the generator offers a single random candidate instead of making the search expand them all. Disable the feature to
-/// search openings exhaustively.
+/// Returns one randomly chosen opening removal
 #[cfg(feature = "random-openings")]
 fn opening_removals(_state: &KonaneState, candidates: Vec<Position>) -> Vec<KonaneAction> {
     candidates
@@ -112,6 +100,7 @@ fn opening_removals(_state: &KonaneState, candidates: Vec<Position>) -> Vec<Kona
         .unwrap_or_default()
 }
 
+/// Returns every opening removal
 #[cfg(not(feature = "random-openings"))]
 fn opening_removals(_state: &KonaneState, candidates: Vec<Position>) -> Vec<KonaneAction> {
     candidates.into_iter().map(KonaneAction::OpeningRemoval).collect()
@@ -249,9 +238,8 @@ mod tests {
 
             let jump = crate::game::rules::Jump {
                 from: Position::new(0, 0),
-                to: Position::new(0, 2),
                 direction: crate::game::state::Direction::Right,
-                captured: vec![Position::new(0, 1)],
+                length: 1,
             };
             let action = KonaneAction::Jump(jump);
 
@@ -335,15 +323,20 @@ mod tests {
         fn evaluate_uses_mobility() {
             let evaluator = KonaneEvaluator;
 
-            // State with more black mobility should have higher score
+            // Black has 4 jumps (a1-c1, a1-a3, c3-c1, c3-a3), White has none
             let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2));
             state.remove_stone(Position::new(2, 0));
+            assert_eq!(evaluator.evaluate(&state), 4.0);
 
-            let score = evaluator.evaluate(&state);
-            // Score should be non-zero (mobility difference)
-            assert!(score != 0.0 || score == 0.0); // Just ensure it computes
+            // White has 2 jumps (d1-b1, d3-b3), Black has none
+            let mut state = KonaneState::new(4, PieceColor::Black);
+            state.change_phase(GamePhase::Play);
+            state.set_current_player(PieceColor::White);
+            state.remove_stone(Position::new(0, 1));
+            state.remove_stone(Position::new(2, 1));
+            assert_eq!(evaluator.evaluate(&state), -2.0);
         }
     }
 
@@ -542,7 +535,7 @@ mod tests {
                 PlayerMove::Jump(jump) => {
                     // Should be a valid jump
                     let valid = Rules::all_valid_jumps(&state);
-                    assert!(valid.iter().any(|j| j.from == jump.from && j.to == jump.to));
+                    assert!(valid.contains(&jump));
                 }
                 _ => panic!("Expected Jump during play phase"),
             }

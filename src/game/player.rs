@@ -9,13 +9,13 @@ pub enum PlayerMove {
     Jump(Jump),
 }
 
-// Trait for player implementations This allows for different player types (human, AI, network, etc.)
+// Trait for player implementations. This allows for different player types (human, AI, network, etc.)
 #[allow(dead_code)]
 pub trait Player {
     fn color(&self) -> PieceColor;
 
-    // Called when it's this player's turn Human players return None and wait for UI input AI players could compute and return a
-    // move directly
+    // Called when it's this player's turn. Human players return None and wait for UI input. AI players could compute and return a
+    // move directly.
     fn request_move(&mut self, state: &KonaneState) -> Option<PlayerMove>;
 
     // For human players, this is called when the UI receives input
@@ -114,9 +114,8 @@ mod tests {
             let mut player = create_player();
             let jump = Jump {
                 from: Position::new(0, 0),
-                to: Position::new(0, 2),
                 direction: Direction::Right,
-                captured: vec![Position::new(0, 1)],
+                length: 1,
             };
             player.receive_input(PlayerInput::JumpSelected(jump));
             assert!(player.is_ready());
@@ -168,18 +167,17 @@ mod tests {
 
             let jump = Jump {
                 from: Position::new(0, 0),
-                to: Position::new(0, 2),
                 direction: Direction::Right,
-                captured: vec![Position::new(0, 1)],
+                length: 1,
             };
-            player.receive_input(PlayerInput::JumpSelected(jump.clone()));
+            player.receive_input(PlayerInput::JumpSelected(jump));
 
             let mv = player.request_move(&state);
             assert!(mv.is_some());
             match mv.unwrap() {
                 PlayerMove::Jump(j) => {
                     assert_eq!(j.from, Position::new(0, 0));
-                    assert_eq!(j.to, Position::new(0, 2));
+                    assert_eq!(j.to(), Position::new(0, 2));
                 }
                 _ => panic!("Expected Jump"),
             }
@@ -213,9 +211,8 @@ mod tests {
         fn jump_variant() {
             let jump = Jump {
                 from: Position::new(0, 0),
-                to: Position::new(0, 2),
                 direction: Direction::Right,
-                captured: vec![Position::new(0, 1)],
+                length: 1,
             };
             let mv = PlayerMove::Jump(jump);
             match mv {

@@ -2,17 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Build Commands
-
-Standard cargo workflow. Non-obvious: AI search depth is set with `cargo run -- --ai-depth 12` (default: 8).
-
 ## Kōnane Design
 
 The full rules of the game (authoritative reference for any rules question) are in [rules.md](rules.md).
 
 ### Architecture
-
-The crate (`konane`) is both a library (`src/lib.rs`) and a binary (`src/main.rs`); the minimax search comes from the `game-player` git dependency ([jambolo/game-player](https://github.com/jambolo/game-player)), pinned by `tag` in `Cargo.toml`.
 
 **Why the game/rules/UI separation:**
 
@@ -23,12 +17,7 @@ The crate (`konane`) is both a library (`src/lib.rs`) and a binary (`src/main.rs
 
 Zobrist hashing (`game/zhash.rs`) is the transposition-table key; its RNG is `ChaCha8` so hashes are reproducible across runs.
 
-### UI Framework: iced
-
-- Pure Rust, no FFI
-- Elm-like architecture (Model-View-Update) fits game state management
-- Canvas widget for custom board rendering
-- Cross-platform
+**Board representation:** `Board` stores only an occupancy `Bitboard` (`game/bitboard.rs`, one `u16` per rank). Jumps move two lua, so a stone never changes lua parity and its color is implied by `(row + col) % 2`. Move generation in `rules.rs` shifts whole sets: landings = `shift(shift(own, d) & opponents, d) & vacancies`, repeated for multi-jumps on the unmodified board. `Jump` is `{from, direction, length}`; `to()` and `captured()` are derived.
 
 ### Coordinate System
 

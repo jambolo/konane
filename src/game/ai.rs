@@ -59,6 +59,12 @@ impl StaticEvaluator for KonaneEvaluator {
             };
         }
 
+        // Mobility is only defined once jumping starts; during the opening removals neither player has any, so the
+        // zero-mobility shortcuts below would misread every opening state as a decided game.
+        if state.current_phase() != GamePhase::Play {
+            return 0.0;
+        }
+
         // Mobility heuristic: count valid moves for each player
         let black_mobility = count_mobility_for(state, PieceColor::Black);
         if state.current_player() == PieceColor::Black && black_mobility == 0 {
@@ -288,6 +294,32 @@ mod tests {
 
             let score = evaluator.evaluate(&state);
             assert_eq!(score, evaluator.bob_wins_value());
+        }
+
+        #[test]
+        fn evaluate_opening_phases_are_neutral() {
+            let evaluator = KonaneEvaluator;
+
+            let black_removal = KonaneState::new(8, PieceColor::Black);
+            assert_eq!(evaluator.evaluate(&black_removal), 0.0);
+
+            let mut white_removal = black_removal.clone();
+            let _ = Rules::apply_opening_removal(&mut white_removal, Position::new(3, 3));
+            assert_eq!(white_removal.current_phase(), GamePhase::OpeningWhiteRemoval);
+            assert_eq!(evaluator.evaluate(&white_removal), 0.0);
+        }
+
+        #[test]
+        fn evaluate_zero_mobility_loses_in_play_phase() {
+            let evaluator = KonaneEvaluator;
+
+            // Black to move on a board with no legal jumps loses.
+            let mut state = KonaneState::new(4, PieceColor::Black);
+            state.change_phase(GamePhase::Play);
+            assert_eq!(evaluator.evaluate(&state), evaluator.bob_wins_value());
+
+            state.set_current_player(PieceColor::White);
+            assert_eq!(evaluator.evaluate(&state), evaluator.alice_wins_value());
         }
 
         #[test]

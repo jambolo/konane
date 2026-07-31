@@ -8,6 +8,11 @@ version = "1.0.0"
 
 edition = "2024"
 
+[features]
+default = ["random-openings"]
+# Collapse each opening removal to one randomly chosen move instead of searching every candidate.
+random-openings = []
+
 [dependencies]
 iced = { version = "0.14", features = ["image", "canvas", "tokio"] }
 serde = { version = "1.0", features = ["derive"] }

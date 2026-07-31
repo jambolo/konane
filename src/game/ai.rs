@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use game_player::minimax::{ResponseGenerator, search};
 use game_player::{PlayerId, State, StaticEvaluator};
+#[cfg(feature = "random-openings")]
+use rand::seq::IndexedRandom;
 
 use crate::game::player::{Player, PlayerInput, PlayerMove};
 use crate::game::rules::{Jump, Rules};
@@ -59,8 +61,8 @@ impl StaticEvaluator for KonaneEvaluator {
             };
         }
 
-        // Mobility is only defined once jumping starts; during the opening removals neither player has any, so the
-        // zero-mobility shortcuts below would misread every opening state as a decided game.
+        // Mobility is only defined once jumping starts; during the opening removals neither player has any, so the zero-mobility
+        // shortcuts below would misread every opening state as a decided game.
         if state.current_phase() != GamePhase::Play {
             return 0.0;
         }
@@ -99,23 +101,30 @@ fn count_mobility_for(state: &KonaneState, color: PieceColor) -> i32 {
 
 pub struct KonaneMoveGenerator;
 
+/// Both opening removals are heavily constrained by symmetry and are not known to affect the outcome, so with the `random-openings`
+/// feature the generator offers a single random candidate instead of making the search expand them all. Disable the feature to
+/// search openings exhaustively.
+#[cfg(feature = "random-openings")]
+fn opening_removals(_state: &KonaneState, candidates: Vec<Position>) -> Vec<KonaneAction> {
+    candidates
+        .choose(&mut rand::rng())
+        .map(|pos| vec![KonaneAction::OpeningRemoval(*pos)])
+        .unwrap_or_default()
+}
+
+#[cfg(not(feature = "random-openings"))]
+fn opening_removals(_state: &KonaneState, candidates: Vec<Position>) -> Vec<KonaneAction> {
+    candidates.into_iter().map(KonaneAction::OpeningRemoval).collect()
+}
+
 impl ResponseGenerator for KonaneMoveGenerator {
     type State = KonaneState;
 
     fn generate(&self, state: &Self::State, _depth: u32) -> Vec<KonaneAction> {
         match state.current_phase() {
-            GamePhase::OpeningBlackRemoval => Rules::valid_black_opening_removals(state)
-                .into_iter()
-                .map(KonaneAction::OpeningRemoval)
-                .collect(),
-            GamePhase::OpeningWhiteRemoval => Rules::valid_white_opening_removals(state)
-                .into_iter()
-                .map(KonaneAction::OpeningRemoval)
-                .collect(),
-            GamePhase::Play => Rules::all_valid_jumps(state)
-                .into_iter()
-                .map(KonaneAction::Jump)
-                .collect(),
+            GamePhase::OpeningBlackRemoval => opening_removals(state, Rules::valid_black_opening_removals(state)),
+            GamePhase::OpeningWhiteRemoval => opening_removals(state, Rules::valid_white_opening_removals(state)),
+            GamePhase::Play => Rules::all_valid_jumps(state).into_iter().map(KonaneAction::Jump).collect(),
             _ => Vec::new(),
         }
     }
@@ -353,6 +362,85 @@ mod tests {
             for mv in &moves {
                 assert!(matches!(mv, KonaneAction::OpeningRemoval(_)));
             }
+        }
+
+        #[cfg(feature = "random-openings")]
+        #[test]
+        fn black_opening_removal_generates_exactly_one_valid_move() {
+            let state = KonaneState::new(8, PieceColor::Black);
+            let generator = KonaneMoveGenerator;
+            let valid = Rules::valid_black_opening_removals(&state);
+            assert!(valid.len() > 1);
+
+            for _ in 0..20 {
+                let moves = generator.generate(&state, 0);
+                assert_eq!(moves.len(), 1);
+                match moves[0] {
+                    KonaneAction::OpeningRemoval(pos) => assert!(valid.contains(&pos)),
+                    _ => panic!("Expected OpeningRemoval"),
+                }
+            }
+        }
+
+        #[cfg(feature = "random-openings")]
+        #[test]
+        fn white_opening_removal_generates_exactly_one_valid_move() {
+            let mut state = KonaneState::new(8, PieceColor::Black);
+            let _ = Rules::apply_opening_removal(&mut state, Position::new(0, 0));
+            assert_eq!(state.current_phase(), GamePhase::OpeningWhiteRemoval);
+
+            let generator = KonaneMoveGenerator;
+            let valid = Rules::valid_white_opening_removals(&state);
+            assert!(valid.len() > 1);
+
+            for _ in 0..20 {
+                let moves = generator.generate(&state, 0);
+                assert_eq!(moves.len(), 1);
+                match moves[0] {
+                    KonaneAction::OpeningRemoval(pos) => assert!(valid.contains(&pos)),
+                    _ => panic!("Expected OpeningRemoval"),
+                }
+            }
+        }
+
+        #[cfg(feature = "random-openings")]
+        #[test]
+        fn openings_pick_one_of_the_valid_candidates_on_small_boards() {
+            let mut state = KonaneState::new(6, PieceColor::Black);
+            let generator = KonaneMoveGenerator;
+
+            let black = Rules::valid_black_opening_removals(&state);
+            assert!(black.len() > 1);
+            let moves = generator.generate(&state, 0);
+            assert_eq!(moves.len(), 1);
+            match moves[0] {
+                KonaneAction::OpeningRemoval(pos) => assert!(black.contains(&pos)),
+                _ => panic!("Expected OpeningRemoval"),
+            }
+
+            let _ = Rules::apply_opening_removal(&mut state, Position::new(0, 0));
+            let white = Rules::valid_white_opening_removals(&state);
+            assert!(white.len() > 1);
+            let moves = generator.generate(&state, 0);
+            assert_eq!(moves.len(), 1);
+            match moves[0] {
+                KonaneAction::OpeningRemoval(pos) => assert!(white.contains(&pos)),
+                _ => panic!("Expected OpeningRemoval"),
+            }
+        }
+
+        #[cfg(not(feature = "random-openings"))]
+        #[test]
+        fn openings_are_exhaustive_without_the_feature() {
+            let mut state = KonaneState::new(8, PieceColor::Black);
+            let generator = KonaneMoveGenerator;
+
+            let black = Rules::valid_black_opening_removals(&state);
+            assert_eq!(generator.generate(&state, 0).len(), black.len());
+
+            let _ = Rules::apply_opening_removal(&mut state, Position::new(0, 0));
+            let white = Rules::valid_white_opening_removals(&state);
+            assert_eq!(generator.generate(&state, 0).len(), white.len());
         }
 
         #[test]

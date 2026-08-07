@@ -293,9 +293,8 @@ mod tests {
 
             let result = import_game_from_content(json);
             // This may fail if the jump isn't valid - check actual board state The test verifies that jump parsing works
-            if result.is_err() {
+            if let Err(err) = result {
                 // Jump validation is strict, ensure this is a genuine validation error
-                let err = result.unwrap_err();
                 assert!(
                     err.contains("Invalid jump") || err.contains("Position"),
                     "Unexpected error: {}",

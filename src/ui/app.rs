@@ -17,7 +17,8 @@ pub enum Message {
     Board(BoardMessage),
     GameOver(GameOverMessage),
     Tick,
-    AiMoveComputed(Option<PlayerMove>),
+    AiMoveComputed(u64, Option<PlayerMove>),
+    NewGame,
 }
 
 pub enum AppView {
@@ -40,6 +41,8 @@ pub struct KonaneApp {
     white_player_type: PlayerType,
     ai_computing: bool,
     ai_depth: u32,
+    // Incremented whenever a pending AI result must be discarded (game canceled/restarted)
+    ai_generation: u64,
 }
 
 impl Default for KonaneApp {
@@ -58,6 +61,7 @@ impl Default for KonaneApp {
             white_player_type: PlayerType::Human,
             ai_computing: false,
             ai_depth: 8,
+            ai_generation: 0,
         }
     }
 }
@@ -84,7 +88,20 @@ impl KonaneApp {
                 self.board_view.update_animations();
                 Task::none()
             }
-            Message::AiMoveComputed(maybe_move) => self.handle_ai_move(maybe_move),
+            Message::AiMoveComputed(generation, maybe_move) => self.handle_ai_move(generation, maybe_move),
+            Message::NewGame => {
+                // Invalidate any in-flight AI computation so its result is discarded
+                self.ai_generation += 1;
+                self.ai_computing = false;
+                self.view = AppView::Setup;
+                self.game_state = None;
+                self.game_over_view = None;
+                self.board_view = BoardView::default();
+                self.move_history.clear();
+                self.undo_stack.clear();
+                self.redo_stack.clear();
+                Task::none()
+            }
         }
     }
 
@@ -425,6 +442,7 @@ impl KonaneApp {
 
         let state_clone = state.clone();
         let depth = self.ai_depth;
+        let generation = self.ai_generation;
 
         self.ai_computing = true;
         self.update_status();
@@ -439,11 +457,16 @@ impl KonaneApp {
                 .ok()
                 .flatten()
             },
-            Message::AiMoveComputed,
+            move |maybe_move| Message::AiMoveComputed(generation, maybe_move),
         )
     }
 
-    fn handle_ai_move(&mut self, maybe_move: Option<PlayerMove>) -> Task<Message> {
+    fn handle_ai_move(&mut self, generation: u64, maybe_move: Option<PlayerMove>) -> Task<Message> {
+        // Result from a canceled game — ignore it
+        if generation != self.ai_generation {
+            return Task::none();
+        }
+
         self.ai_computing = false;
 
         let Some(player_move) = maybe_move else {
@@ -551,7 +574,9 @@ impl KonaneApp {
         // Current player indicator
         let player_indicator = row![text("Current: ").size(16), text(state.current_player().to_string()).size(16),].spacing(5);
 
-        let info_bar = row![undo_btn, redo_btn, player_indicator]
+        let new_game_btn = button(text("New Game").size(14)).on_press(Message::NewGame);
+
+        let info_bar = row![undo_btn, redo_btn, player_indicator, new_game_btn]
             .spacing(15)
             .align_y(Alignment::Center);
 

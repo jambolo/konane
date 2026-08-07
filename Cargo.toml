@@ -9,9 +9,12 @@ version = "1.0.0"
 edition = "2024"
 
 [features]
-default = ["random-openings"]
+default = ["random-openings", "use-mcts"]
 # Collapse each opening removal to one randomly chosen move instead of searching every candidate.
 random-openings = []
+# Drive the AI with game-player's MCTS search instead of minimax. With this feature, --ai-depth
+# becomes an iteration budget multiplier (depth x 1000 MCTS iterations per move).
+use-mcts = []
 
 [dependencies]
 iced = { version = "0.14", features = ["image", "canvas", "tokio"] }

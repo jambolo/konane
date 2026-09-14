@@ -12,7 +12,7 @@ use crate::game::{Cell, GamePhase, KonaneState, PieceColor, Position, Rules};
 
 static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
 static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
-static BACKGROUND_PATH: &str = "data/background-2.png";
+static BACKGROUND_PATH: &str = "data/background-4.png";
 
 static BLACK_STONE: OnceLock<Handle> = OnceLock::new();
 static WHITE_STONE: OnceLock<Handle> = OnceLock::new();

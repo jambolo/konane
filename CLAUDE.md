@@ -12,7 +12,7 @@ The full rules of the game (authoritative reference for any rules question) are 
 
 ### Architecture
 
-Cargo workspace: the root crate (`konane`) is both a library (`src/lib.rs`) and a binary (`src/main.rs`); `game-player/` provides the minimax search and has its own CLAUDE.md.
+The crate (`konane`) is both a library (`src/lib.rs`) and a binary (`src/main.rs`); the minimax search comes from the `game-player` git dependency ([jambolo/game-player](https://github.com/jambolo/game-player)), pinned by `tag` in `Cargo.toml`.
 
 **Why the game/rules/UI separation:**
 

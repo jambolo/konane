@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "game-player"]
+members = ["."]
 resolver = "2"
 
 [package]
@@ -21,6 +21,6 @@ chrono = { version = "0.4", features = ["serde"] }
 rand = "0.10"
 rand_chacha = "0.10"
 ndarray = "0.17"
-game-player = { path = "game-player" }
+game-player = { git = "https://github.com/jambolo/game-player.git", tag = "v0.4.0" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 clap = { version = "4", features = ["derive"] }

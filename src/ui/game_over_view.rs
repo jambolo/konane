@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, opaque, row, text, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
 
 use crate::game::{MoveHistory, PieceColor};
@@ -25,6 +25,7 @@ pub struct GameOverView {
     pub show_export_modal: bool,
     pub export_path: String,
     pub export_format: Option<ExportFormat>,
+    pub export_error: Option<String>,
 }
 
 impl GameOverView {
@@ -36,6 +37,7 @@ impl GameOverView {
             show_export_modal: false,
             export_path: String::new(),
             export_format: None,
+            export_error: None,
         }
     }
 
@@ -108,19 +110,21 @@ impl GameOverView {
         // Popup dialog box
         let popup = container(content).width(Length::Fixed(400.0)).padding(30).style(popup_style);
 
-        // Semi-transparent backdrop
-        let main_view = container(popup)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .style(backdrop_style);
+        // Semi-transparent backdrop that keeps clicks from reaching the board underneath
+        let main_view = opaque(
+            container(popup)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .style(backdrop_style),
+        );
 
         if self.show_export_modal {
             let modal = self.export_modal_view();
             iced::widget::stack![main_view, modal].into()
         } else {
-            main_view.into()
+            main_view
         }
     }
 
@@ -155,20 +159,27 @@ impl GameOverView {
 
         let buttons = row![cancel_btn, export_btn].spacing(10);
 
-        let modal_content = column![title, path_input, buttons].spacing(15).align_x(Alignment::Center);
+        let mut modal_content = column![title, path_input];
+
+        if let Some(error) = &self.export_error {
+            modal_content = modal_content.push(text(format!("Error: {}", error)));
+        }
+
+        let modal_content = modal_content.push(buttons).spacing(15).align_x(Alignment::Center);
 
         let inner_popup = container(modal_content)
             .width(Length::Fixed(400.0))
             .padding(30)
             .style(popup_style);
 
-        container(inner_popup)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .style(export_backdrop_style)
-            .into()
+        opaque(
+            container(inner_popup)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .style(export_backdrop_style),
+        )
     }
 }
 

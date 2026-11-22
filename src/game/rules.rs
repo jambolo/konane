@@ -51,12 +51,14 @@ impl Rules {
             return Vec::new();
         };
         let empty = Bitboard::from_position(empty_pos);
-        let neighbors = Direction::all().into_iter().fold(Bitboard::EMPTY, |acc, d| acc | empty.shift(d));
+        let neighbors = Direction::all()
+            .into_iter()
+            .fold(Bitboard::EMPTY, |acc, d| acc | empty.shift(d));
         (neighbors & state.board().stones(PieceColor::White)).positions().collect()
     }
 
-    /// Calls `f(direction, length, landings)` for every direction and jump length available to `movers`, where `landings`
-    /// is the set of lua reached. Each landing lua has exactly one origin: `length` double steps back.
+    /// Calls `f(direction, length, landings)` for every direction and jump length available to `movers`, where `landings` is the
+    /// set of lua reached. Each landing lua has exactly one origin: `length` double steps back.
     fn for_each_landing(board: &Board, player: PieceColor, movers: Bitboard, mut f: impl FnMut(Direction, u8, Bitboard)) {
         let opponents = board.stones(player.opposite());
         let vacancies = board.vacancies(player);
@@ -113,7 +115,9 @@ impl Rules {
     /// Number of jumps available to `player`
     pub fn mobility(board: &Board, player: PieceColor) -> u32 {
         let mut count = 0;
-        Self::for_each_landing(board, player, board.stones(player), |_, _, landings| count += landings.count());
+        Self::for_each_landing(board, player, board.stones(player), |_, _, landings| {
+            count += landings.count()
+        });
         count
     }
 
@@ -730,8 +734,8 @@ mod tests {
 
     mod bitboard_equivalence {
         use super::*;
-        use rand::seq::IndexedRandom;
         use rand::SeedableRng;
+        use rand::seq::IndexedRandom;
         use rand_chacha::ChaCha8Rng;
         use std::collections::{BTreeSet, HashSet};
 

@@ -1,14 +1,13 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
 
 use iced::widget::{Space, button, column, container, row, scrollable, stack, text};
-use iced::{Alignment, Element, Length, Subscription, Task};
+use iced::{Alignment, Element, Length, Task};
 use konane::import;
 
 use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
-use crate::game::{AiPlayer, GamePhase, KonaneState, MoveHistory, PieceColor, Position, Rules, UndoRedoStack};
+use crate::game::{AiPlayer, GamePhase, KonaneState, MoveHistory, MoveRecord, PieceColor, Position, Rules, UndoRedoStack};
 use crate::ui::board_view::{BoardMessage, BoardView};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
@@ -21,7 +20,6 @@ pub enum Message {
     Setup(SetupMessage),
     Board(BoardMessage),
     GameOver(GameOverMessage),
-    Tick,
     AiMoveComputed(u64, Option<PlayerMove>),
     NewGame,
 }
@@ -40,6 +38,8 @@ pub struct KonaneApp {
     game_over_view: Option<GameOverView>,
     status_message: String,
     move_history: MoveHistory,
+    // Move list text, kept in step with move_history
+    move_labels: Vec<String>,
     undo_stack: UndoRedoStack,
     redo_stack: UndoRedoStack,
     black_player_type: PlayerType,
@@ -60,6 +60,7 @@ impl Default for KonaneApp {
             game_over_view: None,
             status_message: String::new(),
             move_history: Vec::new(),
+            move_labels: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             black_player_type: PlayerType::Human,
@@ -89,10 +90,6 @@ impl KonaneApp {
             Message::Setup(msg) => self.handle_setup(msg),
             Message::Board(msg) => self.handle_board(msg),
             Message::GameOver(msg) => self.handle_game_over(msg),
-            Message::Tick => {
-                self.board_view.update_animations();
-                Task::none()
-            }
             Message::AiMoveComputed(generation, maybe_move) => self.handle_ai_move(generation, maybe_move),
             Message::NewGame => {
                 self.cancel_ai_move();
@@ -100,20 +97,11 @@ impl KonaneApp {
                 self.game_state = None;
                 self.game_over_view = None;
                 self.board_view = BoardView::default();
-                self.move_history.clear();
+                self.set_history(Vec::new());
                 self.undo_stack.clear();
                 self.redo_stack.clear();
                 Task::none()
             }
-        }
-    }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        // Only subscribe to ticks when there are animations running
-        if self.board_view.has_animations() {
-            iced::time::every(Duration::from_millis(16)).map(|_| Message::Tick)
-        } else {
-            Subscription::none()
         }
     }
 
@@ -135,7 +123,7 @@ impl KonaneApp {
                 let first_player = self.setup.color_option.to_piece_color();
                 self.game_state = Some(KonaneState::new(self.setup.board_size, first_player));
                 self.board_view = BoardView::default();
-                self.move_history.clear();
+                self.set_history(Vec::new());
                 self.undo_stack.clear();
                 self.redo_stack.clear();
                 self.black_player_type = self.setup.black_player_type;
@@ -165,7 +153,7 @@ impl KonaneApp {
                     Ok((state, move_history, undo_stack)) => {
                         self.game_state = Some(state);
                         self.board_view = BoardView::default();
-                        self.move_history = move_history;
+                        self.set_history(move_history);
                         self.undo_stack = undo_stack;
                         self.redo_stack.clear();
                         self.black_player_type = self.setup.black_player_type;
@@ -189,7 +177,7 @@ impl KonaneApp {
     }
 
     fn handle_board(&mut self, msg: BoardMessage) -> Task<Message> {
-        if self.game_state.is_none() {
+        if self.game_state.is_none() || !matches!(self.view, AppView::Playing) {
             return Task::none();
         }
 
@@ -242,7 +230,7 @@ impl KonaneApp {
                     let state = self.game_state.as_mut().unwrap();
                     let color = state.board().get_piece_color(pos).unwrap_or(PieceColor::Black);
                     if let Ok(record) = Rules::apply_opening_removal(state, pos) {
-                        self.move_history.push(record);
+                        self.push_move(record);
                     }
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
@@ -256,7 +244,7 @@ impl KonaneApp {
                     let state = self.game_state.as_mut().unwrap();
                     let color = state.board().get_piece_color(pos).unwrap_or(PieceColor::White);
                     if let Ok(record) = Rules::apply_opening_removal(state, pos) {
-                        self.move_history.push(record);
+                        self.push_move(record);
                     }
                     self.board_view.animate_removal(pos, color);
                     self.board_view.clear_selection();
@@ -293,7 +281,7 @@ impl KonaneApp {
 
         // Apply the jump and record it
         let record = Rules::apply_jump(state, &jump);
-        self.move_history.push(record);
+        self.push_move(record);
 
         // Animate all captured pieces
         for (pos, color) in captured_info {
@@ -317,11 +305,13 @@ impl KonaneApp {
                     view.show_export_modal = true;
                     view.export_format = Some(format);
                     view.export_path.clear();
+                    view.export_error = None;
                 }
             }
             GameOverMessage::ExportPathChanged(path) => {
                 if let Some(ref mut view) = self.game_over_view {
                     view.export_path = path;
+                    view.export_error = None;
                 }
             }
             GameOverMessage::CancelExport => {
@@ -329,20 +319,30 @@ impl KonaneApp {
                     view.show_export_modal = false;
                     view.export_path.clear();
                     view.export_format = None;
+                    view.export_error = None;
                 }
             }
             GameOverMessage::ConfirmExport => {
                 if let Some(ref mut view) = self.game_over_view {
-                    let path = view.export_path.clone();
                     let content = match view.export_format {
                         Some(ExportFormat::Text) => view.generate_text_log(),
                         Some(ExportFormat::Json) => view.generate_json_log(),
                         None => return Task::none(),
                     };
-                    let _ = std::fs::write(&path, content);
-                    view.show_export_modal = false;
-                    view.export_path.clear();
-                    view.export_format = None;
+                    let result = if view.export_path.trim().is_empty() {
+                        Err("No file path entered".to_string())
+                    } else {
+                        std::fs::write(&view.export_path, content).map_err(|error| error.to_string())
+                    };
+                    // The modal stays open on failure so the error is visible
+                    match result {
+                        Ok(()) => {
+                            view.show_export_modal = false;
+                            view.export_path.clear();
+                            view.export_format = None;
+                        }
+                        Err(error) => view.export_error = Some(error),
+                    }
                 }
             }
         }
@@ -362,36 +362,78 @@ impl KonaneApp {
         self.ai_computing = false;
     }
 
-    fn handle_undo(&mut self) {
-        if let Some((previous_state, previous_history)) = self.undo_stack.pop() {
-            self.cancel_ai_move();
-            if let Some(current_state) = self.game_state.take() {
-                self.redo_stack.push((current_state, self.move_history.clone()));
-            }
-            self.game_state = Some(previous_state);
-            self.move_history = previous_history;
-            self.board_view.clear_selection();
-            self.board_view.invalidate_foreground_caches();
-            self.update_status();
-        }
+    fn push_move(&mut self, record: MoveRecord) {
+        self.move_labels.push(move_label(self.move_history.len(), &record));
+        self.move_history.push(record);
     }
 
-    fn handle_redo(&mut self) {
-        if let Some((next_state, next_history)) = self.redo_stack.pop() {
-            self.cancel_ai_move();
-            if let Some(current_state) = self.game_state.take() {
-                self.undo_stack.push((current_state, self.move_history.clone()));
-            }
-            self.game_state = Some(next_state);
-            self.move_history = next_history;
-            self.board_view.clear_selection();
-            self.board_view.invalidate_foreground_caches();
-            self.update_status();
+    fn set_history(&mut self, history: MoveHistory) {
+        self.move_history = history;
+        self.rebuild_move_labels();
+    }
+
+    fn rebuild_move_labels(&mut self) {
+        self.move_labels = self
+            .move_history
+            .iter()
+            .enumerate()
+            .map(|(i, record)| move_label(i, record))
+            .collect();
+    }
+
+    // Index of the latest undo snapshot in which a human is to move
+    fn undo_target(&self) -> Option<usize> {
+        self.undo_stack
+            .iter()
+            .rposition(|(state, _)| !self.is_ai(state.current_player()))
+    }
+
+    // Rolls back to before the last human move, so the AI does not immediately replay the move that was undone
+    fn handle_undo(&mut self) {
+        let Some(target) = self.undo_target() else {
+            return;
+        };
+        // Snapshots in which the AI is to move are skipped, but kept for redo
+        let skipped = self.undo_stack.split_off(target + 1);
+        let Some((previous_state, previous_history)) = self.undo_stack.pop() else {
+            return;
+        };
+
+        self.cancel_ai_move();
+        if let Some(current_state) = self.game_state.replace(previous_state) {
+            self.redo_stack.push((current_state, std::mem::take(&mut self.move_history)));
         }
+        self.redo_stack.extend(skipped.into_iter().rev());
+        self.set_history(previous_history);
+        self.board_view.clear_selection();
+        self.board_view.invalidate_foreground_caches();
+        self.update_status();
+    }
+
+    // Steps forward to the next state in which a human is to move, or to the newest state
+    fn handle_redo(&mut self) {
+        if self.redo_stack.is_empty() {
+            return;
+        }
+
+        self.cancel_ai_move();
+        while let Some((next_state, next_history)) = self.redo_stack.pop() {
+            let current_history = std::mem::replace(&mut self.move_history, next_history);
+            if let Some(current_state) = self.game_state.replace(next_state) {
+                self.undo_stack.push((current_state, current_history));
+            }
+            if !self.is_current_player_ai() {
+                break;
+            }
+        }
+        self.rebuild_move_labels();
+        self.board_view.clear_selection();
+        self.board_view.invalidate_foreground_caches();
+        self.update_status();
     }
 
     fn can_undo(&self) -> bool {
-        !self.undo_stack.is_empty()
+        self.undo_target().is_some()
     }
 
     fn can_redo(&self) -> bool {
@@ -427,14 +469,17 @@ impl KonaneApp {
         };
     }
 
-    fn is_current_player_ai(&self) -> bool {
-        let Some(ref state) = self.game_state else {
-            return false;
-        };
-        match state.current_player() {
+    fn is_ai(&self, color: PieceColor) -> bool {
+        match color {
             PieceColor::Black => self.black_player_type == PlayerType::Ai,
             PieceColor::White => self.white_player_type == PlayerType::Ai,
         }
+    }
+
+    fn is_current_player_ai(&self) -> bool {
+        self.game_state
+            .as_ref()
+            .is_some_and(|state| self.is_ai(state.current_player()))
     }
 
     fn maybe_trigger_ai_move(&mut self) -> Task<Message> {
@@ -503,7 +548,7 @@ impl KonaneApp {
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
                 if let Ok(record) = Rules::apply_opening_removal(state, pos) {
-                    self.move_history.push(record);
+                    self.push_move(record);
                 }
                 self.board_view.animate_removal(pos, color);
                 self.board_view.clear_selection();
@@ -520,7 +565,7 @@ impl KonaneApp {
                 self.save_state_for_undo();
                 let state = self.game_state.as_mut().unwrap();
                 let record = Rules::apply_jump(state, &jump);
-                self.move_history.push(record);
+                self.push_move(record);
 
                 for (pos, color) in captured_info {
                     self.board_view.animate_removal(pos, color);
@@ -604,8 +649,8 @@ impl KonaneApp {
 
         // Move list
         let mut move_list = column![].spacing(4);
-        for (i, record) in self.move_history.iter().enumerate() {
-            move_list = move_list.push(text(format!("{}. {}", i + 1, record.to_algebraic())).size(14));
+        for label in &self.move_labels {
+            move_list = move_list.push(text(label.as_str()).size(14));
         }
         let move_list_padded = row![move_list, Space::new().width(15.0)];
         let move_panel = container(scrollable(move_list_padded).height(Length::Fill).width(Length::Fill))
@@ -621,5 +666,148 @@ impl KonaneApp {
             .align_x(Alignment::Center);
 
         container(content).width(Length::Fill).height(Length::Fill).into()
+    }
+}
+
+fn move_label(index: usize, record: &MoveRecord) -> String {
+    format!("{}. {}", index + 1, record.to_algebraic())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn start(black: PlayerType, white: PlayerType) -> KonaneApp {
+        let (mut app, _) = KonaneApp::new(2);
+        app.setup.board_size = 6;
+        app.setup.black_player_type = black;
+        app.setup.white_player_type = white;
+        let _ = app.update(Message::Setup(SetupMessage::StartGame));
+        app
+    }
+
+    // Plays the first legal move for the human to move
+    fn human_move(app: &mut KonaneApp) {
+        let state = app.game_state.as_ref().unwrap();
+        let message = match state.current_phase() {
+            GamePhase::OpeningBlackRemoval => BoardMessage::CellClicked(Rules::valid_black_opening_removals(state)[0]),
+            GamePhase::OpeningWhiteRemoval => BoardMessage::CellClicked(Rules::valid_white_opening_removals(state)[0]),
+            _ => BoardMessage::JumpSelected(Rules::valid_jumps_from(state, Rules::movable_pieces(state)[0])[0]),
+        };
+        let _ = app.update(Message::Board(message));
+    }
+
+    // Completes the pending AI search synchronously
+    fn ai_move(app: &mut KonaneApp) {
+        assert!(app.ai_computing);
+        let state = app.game_state.as_ref().unwrap();
+        let player_move = AiPlayer::new(state.current_player(), app.ai_depth).request_move(state);
+        let generation = app.ai_generation.load(Ordering::Relaxed);
+        let _ = app.update(Message::AiMoveComputed(generation, player_move));
+    }
+
+    fn play(app: &mut KonaneApp, moves: usize) {
+        while app.move_history.len() < moves {
+            if app.is_current_player_ai() {
+                ai_move(app)
+            } else {
+                human_move(app)
+            }
+        }
+    }
+
+    fn undo(app: &mut KonaneApp) {
+        let _ = app.update(Message::Board(BoardMessage::Undo));
+    }
+
+    fn redo(app: &mut KonaneApp) {
+        let _ = app.update(Message::Board(BoardMessage::Redo));
+    }
+
+    #[test]
+    fn undo_against_ai_rolls_back_to_before_the_human_move() {
+        let mut app = start(PlayerType::Human, PlayerType::Ai);
+        play(&mut app, 6);
+        let labels = app.move_labels.clone();
+
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 4);
+        assert_eq!(app.move_labels, labels[..4]);
+        assert!(!app.is_current_player_ai());
+        assert!(!app.ai_computing);
+
+        redo(&mut app);
+        assert_eq!(app.move_labels, labels);
+        assert!(!app.is_current_player_ai());
+        assert!(!app.ai_computing);
+        assert!(app.redo_stack.is_empty());
+        assert_eq!(app.undo_stack.len(), 6);
+    }
+
+    #[test]
+    fn undo_while_ai_is_thinking_cancels_the_search() {
+        let mut app = start(PlayerType::Human, PlayerType::Ai);
+        play(&mut app, 4);
+        human_move(&mut app);
+        assert!(app.ai_computing);
+        let generation = app.ai_generation.load(Ordering::Relaxed);
+
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 4);
+        assert!(!app.ai_computing);
+        assert_ne!(app.ai_generation.load(Ordering::Relaxed), generation);
+
+        // Redo returns to the AI's turn and restarts the search
+        redo(&mut app);
+        assert_eq!(app.move_history.len(), 5);
+        assert!(app.ai_computing);
+    }
+
+    #[test]
+    fn undo_is_unavailable_without_a_human_move() {
+        let mut app = start(PlayerType::Ai, PlayerType::Human);
+        play(&mut app, 1);
+        assert!(!app.can_undo());
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 1);
+
+        play(&mut app, 3);
+        assert!(app.can_undo());
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 1);
+        assert!(!app.can_undo());
+    }
+
+    #[test]
+    fn undo_is_unavailable_when_both_players_are_ai() {
+        let mut app = start(PlayerType::Ai, PlayerType::Ai);
+        play(&mut app, 4);
+        assert!(!app.can_undo());
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 4);
+    }
+
+    #[test]
+    fn undo_between_humans_steps_one_move() {
+        let mut app = start(PlayerType::Human, PlayerType::Human);
+        play(&mut app, 5);
+        undo(&mut app);
+        assert_eq!(app.move_history.len(), 4);
+        redo(&mut app);
+        assert_eq!(app.move_history.len(), 5);
+        assert_eq!(app.move_labels.len(), 5);
+    }
+
+    #[test]
+    fn failed_export_keeps_the_modal_open() {
+        let mut app = start(PlayerType::Human, PlayerType::Human);
+        while matches!(app.view, AppView::Playing) {
+            human_move(&mut app);
+        }
+        let _ = app.update(Message::GameOver(GameOverMessage::ShowExportModal(ExportFormat::Text)));
+        let _ = app.update(Message::GameOver(GameOverMessage::ConfirmExport));
+        let view = app.game_over_view.as_ref().unwrap();
+        assert!(view.show_export_modal);
+        assert!(view.export_error.is_some());
     }
 }

@@ -1,49 +1,22 @@
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use std::time::Instant;
 
-use iced::mouse;
 use iced::widget::Stack;
 use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text};
 use iced::widget::image::Handle;
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
+use iced::{mouse, window};
 
 use crate::game::rules::Jump;
 use crate::game::{Cell, GamePhase, KonaneState, PieceColor, Position, Rules};
 
-static BLACK_STONE_PATH: &str = "data/black-stone-15.png";
-static WHITE_STONE_PATH: &str = "data/white-stone-15.png";
-static BACKGROUND_PATH: &str = "data/background-4.png";
-
-static BLACK_STONE: OnceLock<Handle> = OnceLock::new();
-static WHITE_STONE: OnceLock<Handle> = OnceLock::new();
-static BACKGROUND_TILE: OnceLock<Handle> = OnceLock::new();
-
-fn get_black_stone() -> Handle {
-    BLACK_STONE
-        .get_or_init(|| {
-            let bytes = std::fs::read(BLACK_STONE_PATH).expect("Failed to load black stone");
-            Handle::from_bytes(bytes)
-        })
-        .clone()
-}
-
-fn get_white_stone() -> Handle {
-    WHITE_STONE
-        .get_or_init(|| {
-            let bytes = std::fs::read(WHITE_STONE_PATH).expect("Failed to load white stone");
-            Handle::from_bytes(bytes)
-        })
-        .clone()
-}
-
-fn get_background_tile() -> Handle {
-    BACKGROUND_TILE
-        .get_or_init(|| {
-            let bytes = std::fs::read(BACKGROUND_PATH).expect("Failed to load background");
-            Handle::from_bytes(bytes)
-        })
-        .clone()
-}
+// Images are embedded so the binary does not depend on the working directory
+static BLACK_STONE: LazyLock<Handle> =
+    LazyLock::new(|| Handle::from_bytes(include_bytes!("../../data/black-stone-15.png").as_slice()));
+static WHITE_STONE: LazyLock<Handle> =
+    LazyLock::new(|| Handle::from_bytes(include_bytes!("../../data/white-stone-15.png").as_slice()));
+static BACKGROUND_TILE: LazyLock<Handle> =
+    LazyLock::new(|| Handle::from_bytes(include_bytes!("../../data/background-4.png").as_slice()));
 
 const ANIMATION_DURATION_MS: u64 = 300;
 const LABEL_MARGIN: f32 = 20.0;
@@ -126,29 +99,17 @@ impl BoardView {
         &self.selection
     }
 
-    /// Start an animation for a removed piece
+    /// Start an animation for a removed piece. The piece must already be off the board.
     pub fn animate_removal(&mut self, position: Position, color: PieceColor) {
+        self.animations.retain(|anim| !anim.is_complete());
         self.animations.push(RemovalAnimation::new(position, color));
         self.stone_cache.clear();
         self.highlight_cache.clear();
     }
 
-    /// Update animations and remove completed ones
-    pub fn update_animations(&mut self) {
-        let had_animations = !self.animations.is_empty();
-        self.animations.retain(|anim| !anim.is_complete());
-        if had_animations {
-            self.stone_cache.clear();
-        }
-    }
-
-    /// Check if any animations are running
-    pub fn has_animations(&self) -> bool {
-        !self.animations.is_empty()
-    }
-
-    /// Invalidate all caches (call when game state changes externally)
+    /// Drop running animations and invalidate caches (call when game state changes externally)
     pub fn invalidate_foreground_caches(&mut self) {
+        self.animations.clear();
         self.stone_cache.clear();
         self.highlight_cache.clear();
     }
@@ -280,7 +241,7 @@ impl<'a> BackgroundCanvas<'a> {
         offset_y: f32,
         frame: &mut Frame<Renderer>,
     ) {
-        let image = Image::new(get_background_tile()).filter_method(iced::widget::image::FilterMethod::Linear);
+        let image = Image::new(BACKGROUND_TILE.clone()).filter_method(iced::widget::image::FilterMethod::Linear);
 
         for row in 0..board_size {
             for col in 0..board_size {
@@ -435,9 +396,18 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
         let board_size = self.state.board().size();
         let (cell_size, offset_x, offset_y) = compute_board_layout(board_size, bounds);
 
-        vec![self.cache.draw(renderer, bounds.size(), |frame| {
-            self.draw_animated_stones(board_size, cell_size, offset_x, offset_y, frame);
-        })]
+        let stones = self.cache.draw(renderer, bounds.size(), |frame| {
+            self.draw_stones(board_size, cell_size, offset_x, offset_y, frame);
+        });
+
+        // Fading stones change every frame, so they are drawn outside the cache
+        if self.is_animating() {
+            let mut frame = Frame::new(renderer, bounds.size());
+            self.draw_animations(board_size, cell_size, offset_x, offset_y, &mut frame);
+            vec![stones, frame.into_geometry()]
+        } else {
+            vec![stones]
+        }
     }
 
     fn update(
@@ -447,6 +417,11 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
         bounds: Rectangle,
         cursor: mouse::Cursor,
     ) -> Option<Action<BoardMessage>> {
+        // Keep redrawing while a removal is fading out
+        if let Event::Window(window::Event::RedrawRequested(_)) = event {
+            return self.is_animating().then(Action::request_redraw);
+        }
+
         if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event
             && let Some(cursor_position) = cursor.position_in(bounds)
         {
@@ -478,19 +453,26 @@ impl<'a> canvas::Program<BoardMessage> for StoneCanvas<'a> {
 }
 
 impl<'a> StoneCanvas<'a> {
-    fn draw_animated_stones(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
+    fn is_animating(&self) -> bool {
+        self.animations.iter().any(|anim| !anim.is_complete())
+    }
+
+    fn draw_stones(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
         let piece_radius = cell_size * 0.4;
         for row in 0..board_size {
             for col in 0..board_size {
                 let pos = Position::new(row, col);
-                let is_animating = self.animations.iter().any(|a| a.position == pos);
-                if !is_animating && let Some(Cell::Occupied(color)) = self.state.board().get(pos) {
+                if let Some(Cell::Occupied(color)) = self.state.board().get(pos) {
                     let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
                     draw_piece(frame, center, piece_radius, color, 1.0);
                 }
             }
         }
-        for anim in self.animations {
+    }
+
+    fn draw_animations(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
+        let piece_radius = cell_size * 0.4;
+        for anim in self.animations.iter().filter(|anim| !anim.is_complete()) {
             let center = board_to_screen(anim.position, board_size, cell_size, offset_x, offset_y);
             let progress = anim.progress();
             let alpha = 1.0 - progress;
@@ -509,8 +491,8 @@ fn draw_piece_animated(frame: &mut Frame, center: Point, radius: f32, color: Pie
     let half_size = stone_size / 2.0;
 
     let handle = match color {
-        PieceColor::Black => get_black_stone(),
-        PieceColor::White => get_white_stone(),
+        PieceColor::Black => BLACK_STONE.clone(),
+        PieceColor::White => WHITE_STONE.clone(),
     };
 
     let image = Image::new(handle)

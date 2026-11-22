@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, pick_list, radio, row, text, text_input};
+use iced::widget::{button, column, container, opaque, pick_list, radio, row, text, text_input};
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
 
 use crate::game::PieceColor;
@@ -200,13 +200,14 @@ impl SetupView {
             .padding(30)
             .style(popup_style);
 
-        container(popup)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .style(backdrop_style)
-            .into()
+        opaque(
+            container(popup)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .style(backdrop_style),
+        )
     }
 }
 

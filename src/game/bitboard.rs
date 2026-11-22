@@ -129,7 +129,9 @@ mod tests {
     use super::*;
 
     fn set(positions: &[(usize, usize)]) -> Bitboard {
-        positions.iter().fold(Bitboard::EMPTY, |b, &(r, c)| b | Bitboard::from_position(Position::new(r, c)))
+        positions
+            .iter()
+            .fold(Bitboard::EMPTY, |b, &(r, c)| b | Bitboard::from_position(Position::new(r, c)))
     }
 
     #[test]
@@ -182,7 +184,12 @@ mod tests {
         let p: Vec<_> = b.positions().collect();
         assert_eq!(
             p,
-            vec![Position::new(0, 3), Position::new(2, 1), Position::new(2, 5), Position::new(15, 15)]
+            vec![
+                Position::new(0, 3),
+                Position::new(2, 1),
+                Position::new(2, 5),
+                Position::new(15, 15)
+            ]
         );
     }
 }

@@ -73,27 +73,28 @@ A jumped stone is removed. It is not captured: nobody keeps it or counts it, and
 
 ## Screen wording
 
-Current text in the app and the wording that fits this guide.
+The wording the app uses. Change it here and in the code together.
 
-| Where | Current | Brand |
-| --- | --- | --- |
-| Setup subtitle | Traditional Hawaiian Board Game | The Hawaiian game of lava stone and coral |
-| Setup | Board Size: | Board size |
-| Setup | Black Player: / White Player: | Black / White |
-| Setup | Human / AI | Person / Computer |
-| Setup | Start Game | Play |
-| Setup | Import Game | Open a saved game |
-| Status, opening | Black: Remove a black piece from the center or a corner | Black, remove one of your stones from the center or a corner. |
-| Status, opening | White: Remove a white piece adjacent to the empty space | White, remove one of your stones next to the empty lua. |
-| Status, play | Black's turn - Select a piece to move | Black, choose a stone. |
-| Status, play | Black's turn - Select destination | Choose where to land. |
-| Status, computer | Black (AI) is thinking... | Black is thinking… |
-| Side panel | Current: Black | Black to move |
-| Game over | Game Over! / Black wins! | Black wins / White has no jump left. |
-| Game over | Total moves: 42 | 42 moves |
-| Game over | Download game log: | Save this game |
-| Everywhere | New Game | New game |
-| Dialogs | Error: {message} | What happened, then what to do. "That file isn't a saved kōnane game. Choose a .json file saved from Kōnane." |
+| Where | Wording |
+| --- | --- |
+| Setup subtitle | The Hawaiian game of lava stone and coral |
+| Setup | Board size |
+| Setup | Black / White |
+| Setup | Person / Computer |
+| Setup | Play |
+| Setup | Open a saved game |
+| Status, opening | Black, remove one of your stones from the center or a corner. |
+| Status, opening | White, remove one of your stones next to the empty lua. |
+| Status, play | Black, choose a stone. |
+| Status, play | Choose where to land. |
+| Status, computer | Black is thinking… |
+| Side panel | Black to move |
+| Result | Black wins / White has no jump left. |
+| Result | 42 moves |
+| Result | New game / Save this game / Save the move list |
+| Opening a file fails | That file couldn't be opened. Check the name and try again. |
+| The file is not a game | That file isn't a saved kōnane game. |
+| Saving with no name | Enter a file name first. |
 
 ## Describing the game
 

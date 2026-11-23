@@ -75,6 +75,6 @@ The short line plays on the word's other meaning. It is not a claim about when t
 
 ## Status
 
-This is the target. The app does not follow all of it yet: it uses the default iced theme and font, and its highlight colors, wording, and file dialogs predate this guide. Each document ends with a table of the differences.
+The app follows the visual identity and the wording. Some of [experience.md](experience.md) is not built yet: system file dialogs, named strength levels, a how-to-play screen, and sound. Each document ends with what differs.
 
 The Hawaiian in these documents was checked against the Pukui and Elbert dictionary. It has not been reviewed by a fluent speaker. See [culture.md](culture.md#review).

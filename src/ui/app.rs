@@ -1,16 +1,17 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use iced::widget::{Space, button, column, container, row, scrollable, stack, text};
+use iced::widget::{Space, button, column, container, image, row, scrollable, stack, text};
 use iced::{Alignment, Element, Length, Task};
 use konane::import;
 
 use crate::game::player::{Player, PlayerMove};
 use crate::game::rules::Jump;
 use crate::game::{AiPlayer, GamePhase, KonaneState, MoveHistory, MoveRecord, PieceColor, Position, Rules, UndoRedoStack};
-use crate::ui::board_view::{BoardMessage, BoardView};
+use crate::ui::board_view::{BoardMessage, BoardView, stone_handle};
 use crate::ui::game_over_view::{ExportFormat, GameOverMessage, GameOverView};
 use crate::ui::setup_view::{PlayerType, SetupMessage, SetupView};
+use crate::ui::theme;
 
 // Held for the duration of an AI search so that searches run one at a time
 static AI_SEARCH_LOCK: Mutex<()> = Mutex::new(());
@@ -255,7 +256,7 @@ impl KonaneApp {
                 let jumps = Rules::valid_jumps_from(state, pos);
                 if !jumps.is_empty() {
                     self.board_view.select_piece(pos, jumps);
-                    self.status_message = format!("{}'s turn - Select destination", state.current_player());
+                    self.status_message = "Choose where to land.".to_string();
                 } else {
                     self.board_view.clear_selection();
                     self.update_status();
@@ -330,9 +331,10 @@ impl KonaneApp {
                         None => return Task::none(),
                     };
                     let result = if view.export_path.trim().is_empty() {
-                        Err("No file path entered".to_string())
+                        Err("Enter a file name first.".to_string())
                     } else {
-                        std::fs::write(&view.export_path, content).map_err(|error| error.to_string())
+                        std::fs::write(&view.export_path, content)
+                            .map_err(|error| format!("The game couldn't be saved there. {}", error))
                     };
                     // The modal stays open on failure so the error is visible
                     match result {
@@ -445,27 +447,15 @@ impl KonaneApp {
             return;
         };
 
-        let is_ai = self.is_current_player_ai();
-        let ai_suffix = if is_ai { " (AI)" } else { "" };
+        let player = state.current_player();
 
         self.status_message = match state.current_phase() {
-            GamePhase::OpeningBlackRemoval => {
-                format!("Black{}: Remove a black piece from the center or a corner", ai_suffix)
-            }
-            GamePhase::OpeningWhiteRemoval => {
-                format!("White{}: Remove a white piece adjacent to the empty space", ai_suffix)
-            }
-            GamePhase::Play => {
-                if self.ai_computing {
-                    format!("{}{} is thinking...", state.current_player(), ai_suffix)
-                } else {
-                    format!("{}{}'s turn - Select a piece to move", state.current_player(), ai_suffix)
-                }
-            }
-            GamePhase::GameOver { winner } => {
-                format!("{} wins!", winner)
-            }
-            _ => String::new(),
+            GamePhase::GameOver { winner } => format!("{} wins", winner),
+            GamePhase::Setup => String::new(),
+            _ if self.is_current_player_ai() => format!("{} is thinking…", player),
+            GamePhase::OpeningBlackRemoval => "Black, remove one of your stones from the center or a corner.".to_string(),
+            GamePhase::OpeningWhiteRemoval => "White, remove one of your stones next to the empty lua.".to_string(),
+            GamePhase::Play => format!("{}, choose a stone.", player),
         };
     }
 
@@ -617,53 +607,63 @@ impl KonaneApp {
             return text("No game in progress").into();
         };
 
-        // Status bar
-        let status = text(&self.status_message).size(20);
+        let status = text(&self.status_message).font(theme::LABEL).size(19);
 
-        // Undo/Redo buttons
-        let undo_btn = button(text("Undo").size(14));
-        let undo_btn = if self.can_undo() {
-            undo_btn.on_press(Message::Board(BoardMessage::Undo))
-        } else {
-            undo_btn
+        let tool_button = |label: &'static str, message: Option<Message>| {
+            button(text(label).font(theme::LABEL).size(14))
+                .padding([7, 14])
+                .style(theme::secondary_button)
+                .on_press_maybe(message)
         };
+        let undo_btn = tool_button("Undo", self.can_undo().then_some(Message::Board(BoardMessage::Undo)));
+        let redo_btn = tool_button("Redo", self.can_redo().then_some(Message::Board(BoardMessage::Redo)));
+        let new_game_btn = tool_button("New game", Some(Message::NewGame));
 
-        let redo_btn = button(text("Redo").size(14));
-        let redo_btn = if self.can_redo() {
-            redo_btn.on_press(Message::Board(BoardMessage::Redo))
-        } else {
-            redo_btn
-        };
-
-        // Current player indicator
-        let player_indicator = row![text("Current: ").size(16), text(state.current_player().to_string()).size(16),].spacing(5);
-
-        let new_game_btn = button(text("New Game").size(14)).on_press(Message::NewGame);
-
-        let info_bar = row![undo_btn, redo_btn, player_indicator, new_game_btn]
-            .spacing(15)
+        let header = row![status, Space::new().width(Length::Fill), undo_btn, redo_btn, new_game_btn]
+            .spacing(8)
             .align_y(Alignment::Center);
 
         // Board canvas (labels rendered inside canvas)
         let board = self.board_view.view(state).map(Message::Board);
 
+        // Whose stone it is, and what that player is doing
+        let (turn_color, turn_text) = match state.current_phase() {
+            GamePhase::GameOver { winner } => (winner, format!("{} wins", winner)),
+            _ => (state.current_player(), format!("{} to move", state.current_player())),
+        };
+        let turn = row![
+            image(stone_handle(turn_color)).width(32.0).height(32.0),
+            text(turn_text).font(theme::LABEL).size(16)
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center);
+
         // Move list
-        let mut move_list = column![].spacing(4);
+        let mut move_list = column![].spacing(5);
         for label in &self.move_labels {
-            move_list = move_list.push(text(label.as_str()).size(14));
+            move_list = move_list.push(text(label.as_str()).size(15).color(theme::CORAL_300));
         }
-        let move_list_padded = row![move_list, Space::new().width(15.0)];
-        let move_panel = container(scrollable(move_list_padded).height(Length::Fill).width(Length::Fill))
-            .width(Length::Fixed(150.0))
-            .height(Length::Fill)
-            .padding(10);
+        let moves_heading = text("Moves").font(theme::LABEL).size(13).color(theme::CORAL_500);
+        let move_panel = container(
+            column![
+                turn,
+                moves_heading,
+                scrollable(move_list)
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+                    .anchor_bottom()
+                    .style(theme::scrollable_style)
+            ]
+            .spacing(12),
+        )
+        .width(Length::Fixed(190.0))
+        .height(Length::Fill)
+        .padding(16)
+        .style(theme::side_panel);
 
-        let board_row = row![board, move_panel].spacing(0);
+        let board_row = row![board, move_panel].spacing(16);
 
-        let content = column![status, info_bar, board_row]
-            .spacing(10)
-            .padding(20)
-            .align_x(Alignment::Center);
+        let content = column![header, board_row].spacing(14).padding(20);
 
         container(content).width(Length::Fill).height(Length::Fill).into()
     }
@@ -722,6 +722,25 @@ mod tests {
 
     fn redo(app: &mut KonaneApp) {
         let _ = app.update(Message::Board(BoardMessage::Redo));
+    }
+
+    #[test]
+    fn status_tells_the_player_what_to_do() {
+        let mut app = start(PlayerType::Human, PlayerType::Human);
+        assert_eq!(
+            app.status_message,
+            "Black, remove one of your stones from the center or a corner."
+        );
+        human_move(&mut app);
+        assert_eq!(app.status_message, "White, remove one of your stones next to the empty lua.");
+        human_move(&mut app);
+        assert_eq!(app.status_message, "Black, choose a stone.");
+    }
+
+    #[test]
+    fn status_says_when_the_computer_is_thinking() {
+        let app = start(PlayerType::Ai, PlayerType::Human);
+        assert_eq!(app.status_message, "Black is thinking…");
     }
 
     #[test]

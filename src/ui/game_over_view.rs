@@ -1,7 +1,13 @@
-use iced::widget::{button, column, container, opaque, row, text, text_input};
-use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
+use std::time::{Duration, Instant};
+
+use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Path};
+use iced::widget::{Space, button, column, container, opaque, row, stack, text, text_input};
+use iced::{Alignment, Element, Length, Point, Rectangle, Renderer, Theme, mouse, window};
 
 use crate::game::{MoveHistory, PieceColor};
+use crate::ui::theme;
+
+const MOONRISE: Duration = Duration::from_millis(1000);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
@@ -26,6 +32,8 @@ pub struct GameOverView {
     pub export_path: String,
     pub export_format: Option<ExportFormat>,
     pub export_error: Option<String>,
+    // When the result appeared, which times the moonrise
+    shown_at: Instant,
 }
 
 impl GameOverView {
@@ -38,6 +46,7 @@ impl GameOverView {
             export_path: String::new(),
             export_format: None,
             export_error: None,
+            shown_at: Instant::now(),
         }
     }
 
@@ -78,99 +87,115 @@ impl GameOverView {
     }
 
     pub fn view(&self) -> Element<'_, GameOverMessage> {
-        let title = text("Game Over!").size(36);
-        let winner_text = text(format!("{} wins!", self.winner)).size(28);
-        let moves_text = text(format!("Total moves: {}", self.move_history.len())).size(18);
-        let download_label = text("Download game log:").size(16);
-        let text_button = button(text("Text").size(16))
-            .padding(10)
-            .on_press(GameOverMessage::ShowExportModal(ExportFormat::Text));
-        let json_button = button(text("JSON").size(16))
-            .padding(10)
-            .on_press(GameOverMessage::ShowExportModal(ExportFormat::Json));
-        let download_row = row![download_label, text_button, json_button]
-            .spacing(10)
-            .align_y(Alignment::Center);
-        let dismiss_button = button(text("New Game").size(18))
-            .padding(15)
-            .on_press(GameOverMessage::Dismiss);
+        let loser = self.winner.opposite();
+        let moon = Canvas::new(Moonrise { started: self.shown_at })
+            .width(Length::Fill)
+            .height(Length::Fixed(124.0));
+        let winner_text = text(format!("{} wins", self.winner)).font(theme::DISPLAY).size(32);
+        let reason_text = text(format!("{} has no jump left.", loser)).size(16).color(theme::CORAL_300);
+        let moves_text = text(format!("{} moves", self.move_history.len()))
+            .size(13)
+            .color(theme::CORAL_500);
+
+        let dismiss_button = button(
+            text("New game")
+                .font(theme::LABEL)
+                .size(17)
+                .width(Length::Fill)
+                .align_x(Alignment::Center),
+        )
+        .padding([10, 20])
+        .width(Length::Fill)
+        .style(theme::primary_button)
+        .on_press(GameOverMessage::Dismiss);
+
+        let save_button = |label: &'static str, format: ExportFormat| {
+            button(
+                text(label)
+                    .font(theme::LABEL)
+                    .size(15)
+                    .width(Length::Fill)
+                    .align_x(Alignment::Center),
+            )
+            .padding([8, 12])
+            .width(Length::Fill)
+            .style(theme::secondary_button)
+            .on_press(GameOverMessage::ShowExportModal(format))
+        };
+        let save_row = row![
+            save_button("Save this game", ExportFormat::Json),
+            save_button("Save the move list", ExportFormat::Text)
+        ]
+        .spacing(10);
+
         let content = column![
-            title,
-            text("").height(Length::Fixed(20.0)),
-            winner_text,
-            moves_text,
-            text("").height(Length::Fixed(30.0)),
-            download_row,
-            text("").height(Length::Fixed(20.0)),
-            dismiss_button,
+            moon,
+            column![winner_text, reason_text, moves_text]
+                .spacing(4)
+                .align_x(Alignment::Center),
+            Space::new().height(8.0),
+            column![dismiss_button, save_row].spacing(10),
         ]
         .spacing(10)
         .align_x(Alignment::Center);
 
-        // Popup dialog box
-        let popup = container(content).width(Length::Fixed(400.0)).padding(30).style(popup_style);
+        let popup = container(content).width(Length::Fixed(400.0)).padding(26).style(theme::panel);
 
-        // Semi-transparent backdrop that keeps clicks from reaching the board underneath
+        // Scrim that keeps clicks from reaching the board underneath
         let main_view = opaque(
             container(popup)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
-                .style(backdrop_style),
+                .style(theme::scrim),
         );
 
         if self.show_export_modal {
-            let modal = self.export_modal_view();
-            iced::widget::stack![main_view, modal].into()
+            stack![main_view, self.export_modal_view()].into()
         } else {
             main_view
         }
     }
 
     fn export_modal_view(&self) -> Element<'_, GameOverMessage> {
-        let format_name = match self.export_format {
-            Some(ExportFormat::Text) => "Text",
-            Some(ExportFormat::Json) => "JSON",
-            None => "File",
+        let (heading, example) = match self.export_format {
+            Some(ExportFormat::Json) => ("Save this game", "konane-game.json"),
+            Some(ExportFormat::Text) | None => ("Save the move list", "konane-game.txt"),
         };
-        let title = text(format!("Export {}", format_name)).size(24);
-
-        let default_name = match self.export_format {
-            Some(ExportFormat::Text) => "konane_game.txt",
-            Some(ExportFormat::Json) => "konane_game.json",
-            None => "konane_game.txt",
-        };
-        let placeholder = format!("Enter file path (e.g., {})", default_name);
+        let title = text(heading).font(theme::HEADING).size(22);
+        let placeholder = format!("File name, for example {}", example);
 
         let path_input = text_input(&placeholder, &self.export_path)
             .on_input(GameOverMessage::ExportPathChanged)
             .on_submit(GameOverMessage::ConfirmExport)
+            .font(theme::BODY)
+            .size(16)
             .padding(10)
-            .width(Length::Fixed(300.0));
+            .style(theme::text_input_style);
 
-        let export_btn = button(text("Save").size(16))
-            .padding(10)
+        let export_btn = button(text("Save").font(theme::LABEL).size(15))
+            .padding([8, 18])
+            .style(theme::primary_button)
             .on_press(GameOverMessage::ConfirmExport);
 
-        let cancel_btn = button(text("Cancel").size(16))
-            .padding(10)
+        let cancel_btn = button(text("Cancel").font(theme::LABEL).size(15))
+            .padding([8, 18])
+            .style(theme::secondary_button)
             .on_press(GameOverMessage::CancelExport);
 
-        let buttons = row![cancel_btn, export_btn].spacing(10);
+        let buttons = row![Space::new().width(Length::Fill), cancel_btn, export_btn].spacing(10);
 
-        let mut modal_content = column![title, path_input];
+        let mut modal_content = column![title, path_input].spacing(16);
 
         if let Some(error) = &self.export_error {
-            modal_content = modal_content.push(text(format!("Error: {}", error)));
+            modal_content = modal_content.push(text(error.as_str()).size(15).color(theme::EMBER_300));
         }
 
-        let modal_content = modal_content.push(buttons).spacing(15).align_x(Alignment::Center);
-
-        let inner_popup = container(modal_content)
-            .width(Length::Fixed(400.0))
-            .padding(30)
-            .style(popup_style);
+        let inner_popup = container(modal_content.push(buttons))
+            .width(Length::Fixed(420.0))
+            .padding(26)
+            .style(theme::panel);
 
         opaque(
             container(inner_popup)
@@ -178,41 +203,62 @@ impl GameOverView {
                 .height(Length::Fill)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
-                .style(export_backdrop_style),
+                .style(theme::scrim),
         )
     }
 }
 
-fn export_backdrop_style(_theme: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.4))),
-        ..Default::default()
+/// A full moon that rises when the result appears
+struct Moonrise {
+    started: Instant,
+}
+
+impl Moonrise {
+    fn progress(&self) -> f32 {
+        (self.started.elapsed().as_secs_f32() / MOONRISE.as_secs_f32()).min(1.0)
     }
 }
 
-// Semi-transparent dark backdrop
-fn backdrop_style(_theme: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.6))),
-        ..Default::default()
-    }
-}
+impl canvas::Program<GameOverMessage> for Moonrise {
+    type State = ();
 
-// Popup dialog style with shadow
-fn popup_style(theme: &Theme) -> container::Style {
-    let palette = theme.extended_palette();
-    container::Style {
-        background: Some(Background::Color(palette.background.base.color)),
-        border: Border {
-            color: palette.background.strong.color,
-            width: 2.0,
-            radius: 8.0.into(),
-        },
-        shadow: Shadow {
-            color: Color::from_rgba(0.0, 0.0, 0.0, 0.5),
-            offset: iced::Vector::new(0.0, 4.0),
-            blur_radius: 20.0,
-        },
-        ..Default::default()
+    fn update(
+        &self,
+        _state: &mut Self::State,
+        event: &Event,
+        _bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Option<Action<GameOverMessage>> {
+        // Keep redrawing until the moon is up
+        if let Event::Window(window::Event::RedrawRequested(_)) = event {
+            return (self.progress() < 1.0).then(Action::request_redraw);
+        }
+        None
+    }
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        const RADIUS: f32 = 26.0;
+
+        // Ease out, so the moon slows as it settles
+        let eased = 1.0 - (1.0 - self.progress()).powi(3);
+        let rest_y = bounds.height / 2.0;
+        let start_y = bounds.height + RADIUS;
+        let center = Point::new(bounds.width / 2.0, start_y + (rest_y - start_y) * eased);
+
+        let mut frame = Frame::new(renderer, bounds.size());
+        // Overlapping faint discs build a soft glow
+        for ring in (1..=10).rev() {
+            let glow = Path::circle(center, RADIUS + ring as f32 * 3.0);
+            frame.fill(&glow, theme::with_alpha(theme::MOON, 0.022 * eased));
+        }
+        frame.fill(&Path::circle(center, RADIUS), theme::MOON);
+        vec![frame.into_geometry()]
     }
 }

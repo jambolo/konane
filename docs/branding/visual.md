@@ -103,14 +103,14 @@ Rules:
 | Body, status line | Source Sans 3 | 400 | 16 |
 | Button, label | Source Sans 3 | 600 | 14 |
 | Caption | Source Sans 3 | 400 | 13 |
-| Move list | Source Sans 3 | 400 | 14, tabular figures |
+| Move list | Source Sans 3 | 400 | 15 |
 
 No typeface is Hawaiian in itself, and the ones sold as "Hawaiian" or "tiki" are the stereotype this brand avoids. The Hawaiian source for type is the language in print. Hawaiian-language newspapers ran from 1834 to 1948, set in the book and news types of their day, and modern Hawaiian is written with the ʻokina and kahakō. So the brand uses a bookish serif and a plain sans, and requires both to draw every Hawaiian letter correctly.
 
 - Lora is for names and moments: the title, a result, a section heading. Source Sans 3 is for everything a player reads to act.
 - Both are licensed under the SIL Open Font License 1.1 and are available from Google Fonts.
 - Both were checked to contain ā ē ī ō ū, Ā Ē Ī Ō Ū, and the ʻokina (U+02BB), and to space the ʻokina correctly.
-- Bundle the font files in the binary, as the stone images are, so the app looks the same on every machine.
+- The font files are in [data/fonts/](../../data/fonts/) with their licenses and are compiled into the binary, so the app looks the same on every machine.
 - Check any new typeface for U+02BB before adopting it. Many popular faces lack it, among them Jost, Outfit, Figtree, Rubik, DM Sans, Manrope, and Fraunces. Young Serif has it but spaces it badly.
 - No all-caps Hawaiian words. Capitals make the kahakō and ʻokina harder to read.
 - Left-align running text. Center only the setup and game-over panels.
@@ -136,7 +136,7 @@ Icons come from the game and from the moon. There is no general-purpose icon set
 
 ### Pattern
 
-[pattern.svg](assets/pattern.svg) repeats the board's opening position at low contrast. Use it behind the setup screen and in empty areas, never behind text smaller than 20 px.
+[pattern.svg](assets/pattern.svg) repeats the board's opening position at low contrast. Use it behind the setup screen and in empty areas. It fades out where text sits; never run it at full strength behind text smaller than 20 px.
 
 The pattern is the board itself. Pukui and Elbert also record *kōnane* as the name of a kapa-beater design. This pattern does not copy that design or any other kapa pattern.
 
@@ -154,27 +154,16 @@ The pattern is the board itself. Pukui and Elbert also record *kōnane* as the n
 - If a setting is needed, show the Hawaiian shore and its rock, not a resort. No palm trees, pineapples, or hula girls. The full list is in [culture.md](culture.md#dont).
 - Shoot or render from directly above, as a player sees the board.
 - Light comes low from one side, cool and soft, like moonlight.
-- Stones vary. Use several stone images on a board so it does not look stamped.
+- Stones vary, so a board does not look stamped. With one image per color, turn and scale each stone a little differently; add more images when clean ones exist.
 - No cartoon or clip-art styles, and no drawn icons standing in for stones on the board.
 
 ## In the app
 
-Where the app differs from this guide today.
+All of this guide is applied in the app, in [src/ui/theme.rs](../../src/ui/theme.rs) and the three views. Two things differ:
 
-| Element | Location | Current | Brand |
-| --- | --- | --- | --- |
-| Theme | [src/main.rs](../../src/main.rs) | iced default | Custom palette: background `basalt-800`, text `coral-100`, primary `turmeric`, success `sea`, warning `turmeric`, danger `ember` |
-| Font | [src/main.rs](../../src/main.rs) | System default | Source Sans 3, with Lora for the title and results |
-| Window icon | [src/main.rs](../../src/main.rs) | None | `app-icon-256.png` |
-| Coordinate labels | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Gray `(0.3, 0.3, 0.3)` | `coral-500` |
-| Stones that may be removed | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Green ring, 3 px | `sea` ring, 2 px |
-| Stones that can move | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Blue ring, 2 px | `moon` ring, 2 px |
-| Selected stone | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Yellow ring, 3 px | `turmeric` ring, 3 px |
-| Lua the stone may land in | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Green fill at 30% with green ring | `sea` fill at 30% with `sea` ring, 2 px |
-| Dialog scrim | [src/ui/setup_view.rs](../../src/ui/setup_view.rs), [src/ui/game_over_view.rs](../../src/ui/game_over_view.rs) | Black at 40–60% | `basalt-900` at 60% |
-| Dialog panel | [src/ui/setup_view.rs](../../src/ui/setup_view.rs), [src/ui/game_over_view.rs](../../src/ui/game_over_view.rs) | Theme background | `basalt-700`, 12 px radius |
-| Stones | [src/ui/board_view.rs](../../src/ui/board_view.rs) | One lava stone image and one coral image | Several of each, so stones differ |
-| Board | [src/ui/board_view.rs](../../src/ui/board_view.rs) | Basalt image | No change |
-| Setup background | [src/ui/setup_view.rs](../../src/ui/setup_view.rs) | Plain | `pattern.svg` |
+| Element | In the app | Why |
+| --- | --- | --- |
+| Stones | One lava stone image and one coral image, each turned and scaled by its lua | Only one image of each color in [data/](../../data/) has a clean transparent background |
+| Move list figures | Proportional | iced has no switch for tabular figures |
 
-For iced, `sea` is `Color::from_rgb8(0x3f, 0xb5, 0xac)`, and so on for the other tokens.
+For iced, `sea` is `theme::SEA`, and so on for the other tokens.

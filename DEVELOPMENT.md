@@ -18,7 +18,10 @@ cargo run --release -- --ai-depth 6
 
 - `--ai-depth` sets the AI's search depth in plies. The default is 8.
 - Use `--release` when playing against the AI. The search is CPU-bound.
-- The stone and background images are compiled into the binary with `include_bytes!`, so it runs from any directory. [data/](data/) holds many variants; the ones in use are named at the top of [src/ui/board_view.rs](src/ui/board_view.rs).
+- Dependencies are compiled with optimizations in debug builds too (`[profile.dev.package."*"]` in [Cargo.toml](Cargo.toml)). The first debug build is slower for it. Without it, a debug build takes about 0.4 s to draw each frame when iced uses its software renderer.
+- iced falls back to its software renderer when it cannot create a GPU device, as under WSL2. Set `ICED_BACKEND=wgpu` to make it fail with the reason instead of falling back.
+- The stone and background images, the fonts, and the window icon are compiled into the binary with `include_bytes!`, so it runs from any directory. [data/](data/) holds many image variants; the ones in use are named at the top of [src/ui/board_view.rs](src/ui/board_view.rs). The fonts are in [data/fonts/](data/fonts/) with their licenses.
+- The look and wording follow the brand guide in [docs/branding/](docs/branding/README.md). Read it before changing anything a player sees.
 
 ### Features
 
@@ -91,6 +94,7 @@ The game, rules, and UI are kept apart for these reasons:
 | [src/game/player.rs](src/game/player.rs) | `Player` trait, `PlayerMove`, and `HumanPlayer` |
 | [src/import.rs](src/import.rs) | JSON game import with full move validation |
 | [src/ui/app.rs](src/ui/app.rs) | `KonaneApp`: top-level state, message handling, undo/redo, AI scheduling |
+| [src/ui/theme.rs](src/ui/theme.rs) | Brand colors, fonts, widget styles, the background pattern and the mark |
 | [src/ui/board_view.rs](src/ui/board_view.rs) | Board rendering, selection, removal animations |
 | [src/ui/setup_view.rs](src/ui/setup_view.rs) | Setup screen and the import dialog |
 | [src/ui/game_over_view.rs](src/ui/game_over_view.rs) | Game-over overlay and the export dialog |
@@ -137,6 +141,7 @@ The UI is an [iced](https://iced.rs) application: `KonaneApp::update` handles a 
 - **Undo and redo.** Before each move, a snapshot of `(KonaneState, MoveHistory)` is pushed onto the undo stack. Undo returns to the latest snapshot in which a human is to move, so the AI does not immediately replay the move that was undone. Redo steps forward to the next human turn.
 - **Board rendering.** The board is three canvases in a `Stack`: background, highlights, stones. Each has its own cache. They are separate canvases because iced draws images above paths within a single frame, so layering needs separate widgets.
 - **Animations.** A removed stone fades out over 300 ms. Fading stones are drawn outside the stone cache, and the stone canvas requests redraws while any fade is running.
+- **Theme.** Every color, font, and widget style comes from `theme.rs`. Views do not define colors of their own. The fonts are loaded in `main.rs`.
 - **Human input.** The UI handles clicks directly. `HumanPlayer` in `player.rs` is not used by it.
 
 ### Import and export

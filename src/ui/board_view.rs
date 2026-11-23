@@ -4,11 +4,12 @@ use std::time::Instant;
 use iced::widget::Stack;
 use iced::widget::canvas::{self, Action, Canvas, Event, Frame, Geometry, Image, Path, Stroke, Text};
 use iced::widget::image::Handle;
-use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
+use iced::{Element, Length, Point, Radians, Rectangle, Renderer, Size, Theme};
 use iced::{mouse, window};
 
 use crate::game::rules::Jump;
 use crate::game::{Cell, GamePhase, KonaneState, PieceColor, Position, Rules};
+use crate::ui::theme;
 
 // Images are embedded so the binary does not depend on the working directory
 static BLACK_STONE: LazyLock<Handle> =
@@ -20,6 +21,14 @@ static BACKGROUND_TILE: LazyLock<Handle> =
 
 const ANIMATION_DURATION_MS: u64 = 300;
 const LABEL_MARGIN: f32 = 20.0;
+
+/// The stone image for a color, for use outside the board
+pub fn stone_handle(color: PieceColor) -> Handle {
+    match color {
+        PieceColor::Black => BLACK_STONE.clone(),
+        PieceColor::White => WHITE_STONE.clone(),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum BoardMessage {
@@ -258,7 +267,7 @@ impl<'a> BackgroundCanvas<'a> {
 
     fn draw_labels(&self, board_size: usize, cell_size: f32, offset_x: f32, offset_y: f32, frame: &mut Frame<Renderer>) {
         let label_size = 14.0;
-        let label_color = Color::from_rgb(0.3, 0.3, 0.3);
+        let label_color = theme::CORAL_500;
         let label_margin = 4.0;
 
         // Row labels (1, 2, 3... from bottom to top) - left of board
@@ -271,6 +280,7 @@ impl<'a> BackgroundCanvas<'a> {
                 position: label_position,
                 color: label_color,
                 size: label_size.into(),
+                font: theme::BODY,
                 align_x: iced::alignment::Horizontal::Right.into(),
                 align_y: iced::alignment::Vertical::Center,
                 ..Text::default()
@@ -287,6 +297,7 @@ impl<'a> BackgroundCanvas<'a> {
                 position: label_position,
                 color: label_color,
                 size: label_size.into(),
+                font: theme::BODY,
                 align_x: iced::alignment::Horizontal::Center.into(),
                 align_y: iced::alignment::Vertical::Top,
                 ..Text::default()
@@ -346,35 +357,28 @@ impl<'a> HighlightCanvas<'a> {
 
                 if valid_removals.contains(&pos) {
                     let highlight = Path::circle(center, hole_radius + 2.0);
-                    frame.stroke(
-                        &highlight,
-                        Stroke::default().with_color(Color::from_rgb(0.0, 0.8, 0.0)).with_width(3.0),
-                    );
+                    frame.stroke(&highlight, Stroke::default().with_color(theme::SEA).with_width(2.0));
                 }
 
                 if movable_pieces.contains(&pos) && selected_pos.is_none() {
                     let highlight = Path::circle(center, hole_radius + 2.0);
                     frame.stroke(
                         &highlight,
-                        Stroke::default().with_color(Color::from_rgb(0.3, 0.7, 1.0)).with_width(2.0),
+                        Stroke::default()
+                            .with_color(theme::with_alpha(theme::MOON, 0.7))
+                            .with_width(2.0),
                     );
                 }
 
                 if selected_pos == Some(pos) {
                     let highlight = Path::circle(center, hole_radius + 3.0);
-                    frame.stroke(
-                        &highlight,
-                        Stroke::default().with_color(Color::from_rgb(1.0, 0.8, 0.0)).with_width(3.0),
-                    );
+                    frame.stroke(&highlight, Stroke::default().with_color(theme::TURMERIC).with_width(3.0));
                 }
 
                 if valid_destinations.contains(&pos) {
                     let highlight = Path::circle(center, hole_radius);
-                    frame.fill(&highlight, Color::from_rgba(0.0, 1.0, 0.0, 0.3));
-                    frame.stroke(
-                        &highlight,
-                        Stroke::default().with_color(Color::from_rgb(0.0, 0.8, 0.0)).with_width(2.0),
-                    );
+                    frame.fill(&highlight, theme::with_alpha(theme::SEA, 0.3));
+                    frame.stroke(&highlight, Stroke::default().with_color(theme::SEA).with_width(2.0));
                 }
             }
         }
@@ -464,7 +468,7 @@ impl<'a> StoneCanvas<'a> {
                 let pos = Position::new(row, col);
                 if let Some(Cell::Occupied(color)) = self.state.board().get(pos) {
                     let center = board_to_screen(pos, board_size, cell_size, offset_x, offset_y);
-                    draw_piece(frame, center, piece_radius, color, 1.0);
+                    draw_piece(frame, center, piece_radius, color, pos, 1.0, 1.0);
                 }
             }
         }
@@ -477,26 +481,28 @@ impl<'a> StoneCanvas<'a> {
             let progress = anim.progress();
             let alpha = 1.0 - progress;
             let scale = 1.0 - (progress * 0.5);
-            draw_piece_animated(frame, center, piece_radius, anim.color, alpha, scale);
+            draw_piece(frame, center, piece_radius, anim.color, anim.position, alpha, scale);
         }
     }
 }
 
-fn draw_piece(frame: &mut Frame, center: Point, piece_radius: f32, color: PieceColor, alpha: f32) {
-    draw_piece_animated(frame, center, piece_radius, color, alpha, 1.0);
+/// A fixed turn and size for the stone at a position, so stones on the board do not look stamped
+fn stone_variation(pos: Position) -> (Radians, f32) {
+    let hash = (pos.row as u32).wrapping_mul(0x9e37_79b1) ^ (pos.col as u32).wrapping_mul(0x85eb_ca6b);
+    let hash = (hash ^ (hash >> 15)).wrapping_mul(0x2c1b_3c6d);
+    let turn = ((hash >> 8) % 1000) as f32 / 1000.0 - 0.5;
+    let size = ((hash >> 20) % 1000) as f32 / 1000.0;
+    (Radians(turn * 1.2), 0.96 + size * 0.09)
 }
 
-fn draw_piece_animated(frame: &mut Frame, center: Point, radius: f32, color: PieceColor, alpha: f32, scale: f32) {
-    let stone_size = radius * 2.0 * scale;
+fn draw_piece(frame: &mut Frame, center: Point, radius: f32, color: PieceColor, pos: Position, alpha: f32, scale: f32) {
+    let (rotation, size) = stone_variation(pos);
+    let stone_size = radius * 2.0 * scale * size;
     let half_size = stone_size / 2.0;
 
-    let handle = match color {
-        PieceColor::Black => BLACK_STONE.clone(),
-        PieceColor::White => WHITE_STONE.clone(),
-    };
-
-    let image = Image::new(handle)
+    let image = Image::new(stone_handle(color))
         .opacity(alpha)
+        .rotation(rotation)
         .filter_method(iced::widget::image::FilterMethod::Linear);
 
     let top_left = Point::new(center.x - half_size, center.y - half_size);

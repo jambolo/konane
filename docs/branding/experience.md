@@ -36,9 +36,9 @@ Where the app differs from this guide today.
 
 | Element | Location | Current | Brand |
 | --- | --- | --- | --- |
-| Opening a saved game | [src/ui/setup_view.rs](../../src/ui/setup_view.rs) | Typed file path | System file dialog |
-| Saving a game | [src/ui/game_over_view.rs](../../src/ui/game_over_view.rs) | Typed file path, Text or JSON | System file dialog, one "Save this game" button |
+| Opening a saved game | [src/ui/setup_view.rs](../../src/ui/setup_view.rs) | Typed file name | System file dialog |
+| Saving a game | [src/ui/game_over_view.rs](../../src/ui/game_over_view.rs) | Typed file name, two buttons | System file dialog, one "Save this game" button |
 | Computer strength | [src/main.rs](../../src/main.rs) | `--ai-depth` only | Easy, Medium, Hard on the setup screen |
 | How to play | | None in the app | One screen, linked from setup |
 | Sound | | None | Stone on stone, with an off switch |
-| Win moment | [src/ui/game_over_view.rs](../../src/ui/game_over_view.rs) | "Game Over!" panel | Moonrise, result, and the reason |
+| Quick game | [src/ui/setup_view.rs](../../src/ui/setup_view.rs) | 6×6 is one of the sizes | Offered by name |

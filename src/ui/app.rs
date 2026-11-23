@@ -270,9 +270,9 @@ impl KonaneApp {
             return;
         };
 
-        // Get captured piece colors and positions before the move
-        let captured_info: Vec<(Position, PieceColor)> = jump
-            .captured()
+        // Get removed piece colors and positions before the move
+        let removed_info: Vec<(Position, PieceColor)> = jump
+            .removed()
             .filter_map(|pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
             .collect();
 
@@ -283,8 +283,8 @@ impl KonaneApp {
         let record = Rules::apply_jump(state, &jump);
         self.push_move(record);
 
-        // Animate all captured pieces
-        for (pos, color) in captured_info {
+        // Animate all removed pieces
+        for (pos, color) in removed_info {
             self.board_view.animate_removal(pos, color);
         }
 
@@ -557,8 +557,8 @@ impl KonaneApp {
                 let Some(ref state) = self.game_state else {
                     return Task::none();
                 };
-                let captured_info: Vec<(Position, PieceColor)> = jump
-                    .captured()
+                let removed_info: Vec<(Position, PieceColor)> = jump
+                    .removed()
                     .filter_map(|pos| state.board().get_piece_color(pos).map(|color| (pos, color)))
                     .collect();
 
@@ -567,7 +567,7 @@ impl KonaneApp {
                 let record = Rules::apply_jump(state, &jump);
                 self.push_move(record);
 
-                for (pos, color) in captured_info {
+                for (pos, color) in removed_info {
                     self.board_view.animate_removal(pos, color);
                 }
 

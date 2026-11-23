@@ -29,17 +29,17 @@ The game begins with two specific removals before any jumping occurs:
 2. **White's First Move:** The White player must remove one White stone that is **orthogonally adjacent** to the empty lua created by Black.
 3. **Result:** The board now has exactly two empty adjacent empty lua.
 
-## Movement and Capture Logic (The Kuʻi)
+## Movement and Removal Logic (The Kuʻi)
 
-After the Opening Phase, all subsequent moves must follow these strict capturing rules:
+After the Opening Phase, all subsequent moves must follow these strict jumping rules:
 
 * **Turn-Based:** Players alternate turns. Players cannot "pass".
-* **Move Type:** All moves must be **capturing jumps**. There are no non-capturing moves.
+* **Move Type:** All moves must be **jumps that remove a stone**. There are no other moves.
 * **Direction:** Jumps must be **orthogonal** (Up, Down, Left, Right). No diagonal jumps.
 * **Mechanic:** A player moves their stone over an opponent's stone into an empty lua immediately behind it.
 * **Removal:** The jumped opponent's stone is removed from the board.
-* **Multi-Jumps:** * A player may perform multiple captures in a single turn using the same stone. During a multi-jump, the player **cannot change direction**. The stone must continue in the same straight line (e.g., if the first jump was "Up," all subsequent jumps in that turn must be "Up").
-* **Optionality:** Multi-jumps are not mandatory. A player may choose to stop after any capture, even if further captures are possible.
+* **Multi-Jumps:** * A player may make multiple jumps in a single turn using the same stone. During a multi-jump, the player **cannot change direction**. The stone must continue in the same straight line (e.g., if the first jump was "Up," all subsequent jumps in that turn must be "Up").
+* **Optionality:** Multi-jumps are not mandatory. A player may choose to stop after any jump, even if further jumps are possible.
 
 ## Win/Loss Condition
 
@@ -66,9 +66,9 @@ The initial removals are recorded by the coordinate of the stone removed:
 * **Black's Removal:** Recorded as the coordinate alone (e.g., `e4`).
 * **White's Removal:** Recorded as the coordinate alone (e.g., `e5`).
 
-### 3. Movement and Capture Notation
+### 3. Jump Notation
 
-Captures are recorded using the **Starting Lua**, a **dash**, and the **Ending Lua**.
+Jumps are recorded using the **Starting Lua**, a **dash**, and the **Ending Lua**.
 
 * **Single Jump:** If a piece on `c3` jumps over a piece on `d3` to land on `e3`, it is written as: **`c3-e3`**.
 * **Multi-Jump:** Because multi-jumps must continue in a straight line, you only need to record the final destination. If a piece on `c3` jumps three pieces in a row to land on `i3`, it is written as: **`c3-i3`**.

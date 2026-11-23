@@ -162,7 +162,7 @@ pub enum MoveRecord {
         color: PieceColor,
         from: Position,
         to: Position,
-        captured: Vec<Position>,
+        removed: Vec<Position>,
     },
 }
 
@@ -184,13 +184,13 @@ impl std::fmt::Display for MoveRecord {
             MoveRecord::OpeningRemoval { color, position } => {
                 write!(f, "{} removes piece at {}", color, position)
             }
-            MoveRecord::Jump { color, captured, .. } => {
+            MoveRecord::Jump { color, removed, .. } => {
                 write!(
                     f,
-                    "{} jumps {} capturing {} piece(s)",
+                    "{} jumps {} removing {} piece(s)",
                     color,
                     self.to_algebraic(),
-                    captured.len()
+                    removed.len()
                 )
             }
         }
@@ -700,7 +700,7 @@ mod tests {
                 color: PieceColor::White,
                 from: Position::new(0, 0),
                 to: Position::new(0, 2),
-                captured: vec![Position::new(0, 1)],
+                removed: vec![Position::new(0, 1)],
             };
             assert_eq!(record.to_algebraic(), "a1-c1");
         }
@@ -722,7 +722,7 @@ mod tests {
                 color: PieceColor::White,
                 from: Position::new(0, 0),
                 to: Position::new(0, 4),
-                captured: vec![Position::new(0, 1), Position::new(0, 3)],
+                removed: vec![Position::new(0, 1), Position::new(0, 3)],
             };
             let display = format!("{}", record);
             assert!(display.contains("White"));

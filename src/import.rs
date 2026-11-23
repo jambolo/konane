@@ -55,9 +55,9 @@ fn validate_and_apply_move(state: &mut KonaneState, record: MoveRecord, move_num
             color,
             from,
             to,
-            captured,
+            removed,
         } => {
-            let jump = validate_jump(state, color, from, to, &captured, move_number)?;
+            let jump = validate_jump(state, color, from, to, &removed, move_number)?;
             Ok(Rules::apply_jump(state, &jump))
         }
     }
@@ -94,7 +94,7 @@ fn validate_jump(
     color: PieceColor,
     from: Position,
     to: Position,
-    captured: &[Position],
+    removed: &[Position],
     move_number: usize,
 ) -> Result<Jump, String> {
     if !matches!(state.current_phase(), GamePhase::Play) {
@@ -117,18 +117,18 @@ fn validate_jump(
     validate_position_in_bounds(state, from, move_number, "From position")?;
     validate_position_in_bounds(state, to, move_number, "To position")?;
 
-    if captured.is_empty() {
-        return Err(format!("Move {}: Jump must capture at least one piece", move_number));
+    if removed.is_empty() {
+        return Err(format!("Move {}: Jump must remove at least one piece", move_number));
     }
 
-    for pos in captured {
-        validate_position_in_bounds(state, *pos, move_number, "Captured position")?;
+    for pos in removed {
+        validate_position_in_bounds(state, *pos, move_number, "Removed position")?;
     }
 
     let valid_jumps = Rules::valid_jumps_from(state, from);
     let matching_jump = valid_jumps
         .into_iter()
-        .find(|jump| jump.to() == to && jump.captured().eq(captured.iter().copied()));
+        .find(|jump| jump.to() == to && jump.removed().eq(removed.iter().copied()));
 
     let Some(jump) = matching_jump else {
         return Err(format!("Move {}: Invalid jump from {} to {}", move_number, from, to));
@@ -290,7 +290,7 @@ mod tests {
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 0, "col": 1}}},
-                    {"Jump": {"color": "Black", "from": {"row": 2, "col": 1}, "to": {"row": 0, "col": 1}, "captured": [{"row": 1, "col": 1}]}}
+                    {"Jump": {"color": "Black", "from": {"row": 2, "col": 1}, "to": {"row": 0, "col": 1}, "removed": [{"row": 1, "col": 1}]}}
                 ]
             }"#;
 
@@ -312,7 +312,7 @@ mod tests {
             let json = r#"{
                 "board_size": 4,
                 "moves": [
-                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "captured": [{"row": 0, "col": 1}]}}
+                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "removed": [{"row": 0, "col": 1}]}}
                 ]
             }"#;
 
@@ -328,7 +328,7 @@ mod tests {
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-                    {"Jump": {"color": "White", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "captured": [{"row": 0, "col": 1}]}}
+                    {"Jump": {"color": "White", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "removed": [{"row": 0, "col": 1}]}}
                 ]
             }"#;
 
@@ -338,19 +338,19 @@ mod tests {
         }
 
         #[test]
-        fn rejects_jump_with_no_captures() {
+        fn rejects_jump_with_no_removals() {
             let json = r#"{
                 "board_size": 4,
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "captured": []}}
+                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "removed": []}}
                 ]
             }"#;
 
             let result = import_game_from_content(json);
             assert!(result.is_err());
-            assert!(result.unwrap_err().contains("capture at least one"));
+            assert!(result.unwrap_err().contains("remove at least one"));
         }
     }
 
@@ -378,7 +378,7 @@ mod tests {
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-                    {"Jump": {"color": "Black", "from": {"row": 10, "col": 0}, "to": {"row": 0, "col": 2}, "captured": [{"row": 0, "col": 1}]}}
+                    {"Jump": {"color": "Black", "from": {"row": 10, "col": 0}, "to": {"row": 0, "col": 2}, "removed": [{"row": 0, "col": 1}]}}
                 ]
             }"#;
 
@@ -394,7 +394,7 @@ mod tests {
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 10}, "captured": [{"row": 0, "col": 1}]}}
+                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 10}, "removed": [{"row": 0, "col": 1}]}}
                 ]
             }"#;
 
@@ -404,13 +404,13 @@ mod tests {
         }
 
         #[test]
-        fn rejects_out_of_bounds_captured_position() {
+        fn rejects_out_of_bounds_removed_position() {
             let json = r#"{
                 "board_size": 4,
                 "moves": [
                     {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
                     {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "captured": [{"row": 10, "col": 1}]}}
+                    {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "removed": [{"row": 10, "col": 1}]}}
                 ]
             }"#;
 

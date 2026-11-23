@@ -1,7 +1,7 @@
 use crate::game::bitboard::Bitboard;
 use crate::game::state::*;
 
-/// A straight-line jump of `length` captures from `from` in `direction`.
+/// A straight-line jump that removes `length` pieces, from `from` in `direction`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Jump {
     pub from: Position,
@@ -14,7 +14,7 @@ impl Jump {
         self.direction.step(self.from, 2 * self.length as usize)
     }
 
-    pub fn captured(&self) -> impl Iterator<Item = Position> {
+    pub fn removed(&self) -> impl Iterator<Item = Position> {
         let jump = *self;
         (0..jump.length as usize).map(move |i| jump.direction.step(jump.from, 2 * i + 1))
     }
@@ -153,9 +153,9 @@ impl Rules {
         // Move the piece
         state.move_stone(jump.from, to);
 
-        // Remove captured pieces
-        for captured_pos in jump.captured() {
-            state.remove_stone(captured_pos);
+        // Remove jumped pieces
+        for removed_pos in jump.removed() {
+            state.remove_stone(removed_pos);
         }
 
         // Switch player
@@ -170,7 +170,7 @@ impl Rules {
             color: player,
             from: jump.from,
             to,
-            captured: jump.captured().collect(),
+            removed: jump.removed().collect(),
         }
     }
     // Apply opening removal, returns the move record
@@ -342,7 +342,7 @@ mod tests {
             assert_eq!(jumps.len(), 1);
             assert_eq!(jumps[0].from, Position::new(0, 0));
             assert_eq!(jumps[0].to(), Position::new(0, 2));
-            assert_eq!(jumps[0].captured().collect::<Vec<_>>(), vec![Position::new(0, 1)]);
+            assert_eq!(jumps[0].removed().collect::<Vec<_>>(), vec![Position::new(0, 1)]);
         }
 
         #[test]
@@ -366,11 +366,11 @@ mod tests {
 
             let single = jumps.iter().find(|j| j.to() == Position::new(0, 2));
             assert!(single.is_some());
-            assert_eq!(single.unwrap().captured().count(), 1);
+            assert_eq!(single.unwrap().removed().count(), 1);
 
             let double = jumps.iter().find(|j| j.to() == Position::new(0, 4));
             assert!(double.is_some());
-            assert_eq!(double.unwrap().captured().count(), 2);
+            assert_eq!(double.unwrap().removed().count(), 2);
         }
 
         #[test]
@@ -390,8 +390,8 @@ mod tests {
             assert_eq!(jumps.len(), 2);
 
             for jump in &jumps {
-                // Each jump captures only 1 piece
-                assert_eq!(jump.captured().count(), 1);
+                // Each jump removes only 1 piece
+                assert_eq!(jump.removed().count(), 1);
             }
         }
     }
@@ -513,7 +513,7 @@ mod tests {
         }
 
         #[test]
-        fn removes_captured_pieces() {
+        fn removes_jumped_pieces() {
             let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
             state.remove_stone(Position::new(0, 2)); // c1 empty
@@ -565,12 +565,12 @@ mod tests {
                     color,
                     from,
                     to,
-                    captured,
+                    removed,
                 } => {
                     assert_eq!(color, PieceColor::Black);
                     assert_eq!(from, Position::new(0, 0));
                     assert_eq!(to, Position::new(0, 2));
-                    assert_eq!(captured.len(), 1);
+                    assert_eq!(removed.len(), 1);
                 }
                 _ => panic!("Expected Jump record"),
             }
@@ -581,7 +581,7 @@ mod tests {
             let mut state = KonaneState::new(4, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
-            // Remove all white pieces except one that will be captured
+            // Remove all white pieces except one that will be removed
             for row in 0..4 {
                 for col in 0..4 {
                     let pos = Position::new(row, col);
@@ -707,7 +707,7 @@ mod tests {
         }
 
         #[test]
-        fn multi_jump_captures_multiple_pieces() {
+        fn multi_jump_removes_multiple_pieces() {
             let mut state = KonaneState::new(8, PieceColor::Black);
             state.change_phase(GamePhase::Play);
 
@@ -716,7 +716,7 @@ mod tests {
             state.remove_stone(Position::new(0, 4)); // e1 empty
 
             let jumps = Rules::valid_jumps_from(&state, Position::new(0, 0));
-            let multi_jump = jumps.iter().find(|j| j.captured().count() == 2);
+            let multi_jump = jumps.iter().find(|j| j.removed().count() == 2);
 
             assert!(multi_jump.is_some());
             let jump = multi_jump.unwrap();
@@ -785,7 +785,7 @@ mod tests {
             assert_eq!(Rules::movable_pieces(state).into_iter().collect::<HashSet<_>>(), froms);
 
             for j in &jumps {
-                for c in j.captured() {
+                for c in j.removed() {
                     assert_eq!(state.board().get_piece_color(c), Some(state.current_player().opposite()));
                 }
                 let from_here: Vec<Jump> = Rules::valid_jumps_from(state, j.from);

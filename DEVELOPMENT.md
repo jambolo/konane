@@ -116,7 +116,7 @@ Move generation in `rules.rs` shifts whole sets of stones at once rather than vi
 
 - Landings for one jump in direction `d` are `shift(shift(own, d) & opponents, d) & vacancies`.
 - Multi-jumps repeat that step on the unmodified board, feeding each set of landings back in as the movers.
-- `Jump` is `{from, direction, length}`, where `length` is the number of captures. `to()` and `captured()` are derived from it.
+- `Jump` is `{from, direction, length}`, where `length` is the number of stones removed. `to()` and `removed()` are derived from it.
 
 ### AI
 
@@ -146,7 +146,7 @@ The UI is an [iced](https://iced.rs) application: `KonaneApp::update` handles a 
 
 ## Conventions
 
-- **Terminology.** A spot on the board is a *lua* (plural *lua*). Use "position" for coordinates.
+- **Terminology.** A spot on the board is a *lua* (plural *lua*). Use "position" for coordinates. A jumped stone is *removed*, never "captured": it is not kept or counted and plays no further part in the game.
 - **Coordinates.** `Position(row, col)` follows algebraic notation. `(0, 0)` is the bottom-left corner, a1. Rows increase upward (rank 1, 2, 3…) and columns increase rightward (file a, b, c…).
 - **Board sizes.** 4×4 to 16×16, even sizes only. The setup view enforces this. Rules and AI code assume an even-sided square board.
 - **Initial placement.** Checkerboard, with Black where `(row + col) % 2 == 0`. a1 is always Black.

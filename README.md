@@ -26,10 +26,10 @@ Kōnane is a traditional Hawaiian strategy board game.
 2. Black removes one Black stone from the center or a corner.
 3. White removes one White stone orthogonally adjacent to the empty space.
 
-### Movement & Captures
+### Movement & Removal
 
 - Players alternate turns.
-- All moves are capturing jumps; no non-capturing moves.
+- All moves are jumps that remove a stone; there are no other moves.
 - Jumps are orthogonal only (up, down, left, right).
 - Jump over an opponent’s stone into an empty space; remove the jumped stone.
 - Multi-jumps allowed in a straight line (no direction change); optional to continue.
@@ -63,7 +63,7 @@ Games can be exported and imported using JSON. The format:
   "moves": [
     { "OpeningRemoval": { "color": "Black", "position": { "row": 3, "col": 3 } } },
     { "OpeningRemoval": { "color": "White", "position": { "row": 3, "col": 4 } } },
-    { "Jump": { "color": "Black", "from": { "row": 3, "col": 5 }, "to": { "row": 3, "col": 3 }, "captured": [{ "row": 3, "col": 4 }] } }
+    { "Jump": { "color": "Black", "from": { "row": 3, "col": 5 }, "to": { "row": 3, "col": 3 }, "removed": [{ "row": 3, "col": 4 }] } }
   ]
 }
 ```
@@ -73,4 +73,4 @@ Games can be exported and imported using JSON. The format:
 - `total_moves`: (optional) Number of moves in the game
 - `moves`: Array of move records
   - `OpeningRemoval`: Initial piece removal with color and position
-  - `Jump`: Capturing move with from/to positions and captured piece positions
+  - `Jump`: A jump with from/to positions; `removed` lists the positions of the removed stones

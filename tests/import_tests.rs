@@ -21,7 +21,7 @@ fn import_rejects_invalid_jump() {
         "moves": [
             {"OpeningRemoval": {"color": "Black", "position": {"row": 1, "col": 1}}},
             {"OpeningRemoval": {"color": "White", "position": {"row": 1, "col": 2}}},
-            {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "captured": [{"row": 0, "col": 1}]}}
+            {"Jump": {"color": "Black", "from": {"row": 0, "col": 0}, "to": {"row": 0, "col": 2}, "removed": [{"row": 0, "col": 1}]}}
         ]
     }"#;
 
